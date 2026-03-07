@@ -1,0 +1,5 @@
+Model,Task,Metric,Score,PR_AUC,CV / note
+Logistic Regression,Chart Entry (binary),AUC-ROC,0.7105,0.0744,0.7130 ± 0.0071  (5-fold)
+XGBoost,Chart Entry (binary),AUC-ROC,0.8302,0.3255,early stop @ iter 498
+Cox PH,Longevity (survival),C-statistic,0.5443,,penalizer=0.1; mode stratified; +decade_idx
+Log-OLS,Longevity (OLS),R²,0.0344,,outcome=log1p(wks); +decade_idx
