@@ -1,0 +1,48 @@
+# ── Raw data files (too large for GitHub; see README §2 for download links) ──
+spotify_tracksdataset.csv
+merged_spotify_billboard_data.csv
+hot-100-current.csv
+
+# ── Augmented dataset (generated when artist_features.csv is present) ─────────
+oit367_augmented_dataset.csv
+
+# ── Spotipy token cache ────────────────────────────────────────────────────────
+.cache
+.cache-*
+
+# ── Python cache ───────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# ── Virtual environments ───────────────────────────────────────────────────────
+venv/
+.venv/
+env/
+.env
+
+# ── macOS ──────────────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ── Jupyter ────────────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ── Modal ──────────────────────────────────────────────────────────────────────
+.modal/
+
+# ── IDE ────────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Future augmentation files (downloaded from Modal volume) ──────────────────
+# Uncomment to also exclude these if the team prefers not to commit them:
+# artist_features.csv
+# preview_urls.csv
+# librosa_features.csv
