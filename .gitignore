@@ -46,3 +46,11 @@ env/
 # artist_features.csv
 # preview_urls.csv
 # librosa_features.csv
+
+# ── Augmentation source datasets (large raw files — download from Kaggle) ─────
+artists.csv
+billboard_top_100_1946_2022_lyrics*.csv
+billboard_lyrics.csv
+Labels.csv
+Best selling music artists.csv
+lyric_features.csv

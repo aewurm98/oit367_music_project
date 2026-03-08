@@ -19,20 +19,33 @@ Changes from v4:
   v5 Fix F — Removed 'danceability' from BASE_FEATURES (VIF=12.41 with duration_min added).
               Danceability is the collinearity hub in v5: it correlates simultaneously
               with tempo, valence, and duration_min, inflating VIF for both itself
-              (12.41) and tempo (11.50). Removing it drops max VIF to 2.02 (loudness).
+              (12.41) and tempo (11.50). Removing danceability drops max VIF.
               Effect is likely captured by the retained correlated features.
               SHAP from the v5 pre-patch run: danceability Mean|SHAP|=0.224 (8th of 12).
 
+  v5 Fix G — Removed 'tempo' from BASE_FEATURES (VIF=10.65 after Fix F).
+              After removing danceability, tempo becomes the next VIF hub (10.65),
+              correlating with duration_min (6.62) through genre/era effects
+              (e.g., dance/disco tracks tend to be mid-length AND have specific BPM ranges;
+               hip-hop tracks skew slower AND shorter). Removing tempo drops max VIF
+              to 6.47 (loudness). Tempo's rhythmic signal is partially captured by
+              loudness and speechiness; decade_idx captures the BPM drift over eras.
+              SHAP from prior runs: tempo was 10th of 12 (low marginal value for LR).
+
 SETUP (run once):
     pip3 install -r requirements.txt
+    # Important: use xgboost==2.1.3 (xgboost 3.x breaks shap TreeExplainer)
 
 Run from inside your OIT-367 folder:
     python3 run_all_v5.py
 
-For Spotipy augmentation (charted artists only — much faster):
+For local artist augmentation (no API required — immediate):
+    python3 build_artist_features.py   ← generates artist_features.csv
+    python3 run_all_v5.py              ← auto-detects and merges it
+
+For Spotipy augmentation (requires Spotify API quota reset — ~24h wait):
     modal run --detach modal_charted_scrape.py
     modal volume get oit367-vol /data/charted_artist_features.csv ./artist_features.csv
-    # rename to artist_features.csv — auto-detected below
 """
 
 # ── Preflight: verify all required packages ───────────────────────────────────
@@ -167,7 +180,9 @@ if artist_features_path.exists():
     print("\nFound artist_features.csv — merging Spotipy augmentation…")
     artist_df = pd.read_csv(artist_features_path)
     df = df.merge(artist_df, on="artists", how="left")
-    df["artist_followers"] = np.log1p(df["artist_followers"].fillna(0))
+    # log-transform follower count only when present (Spotipy API path)
+    if "artist_followers" in df.columns:
+        df["artist_followers"] = np.log1p(df["artist_followers"].fillna(0))
     df.to_csv("oit367_augmented_dataset.csv", index=False)
     print("  Saved oit367_augmented_dataset.csv with artist features.")
 
@@ -190,11 +205,12 @@ if artist_features_path.exists():
 #                  captured in audio features (tempo, danceability, etc.).
 #                  Genre is analysed in Fig 7 (KM) and the chart-rate table.
 BASE_FEATURES = [
-    # Audio features (from v4, minus two VIF-flagged removals):
-    #   energy     removed in Fix A (v4): VIF=15.07, collinear with loudness
-    #   danceability removed in Fix F (v5): VIF=12.41, collinear hub with tempo,
-    #                                        valence, and duration_min
-    "valence", "tempo",
+    # Audio features (from v4, minus three VIF-flagged removals):
+    #   energy       removed in Fix A (v4): VIF=15.07, collinear with loudness
+    #   danceability removed in Fix F (v5): VIF=12.41, collinear hub
+    #   tempo        removed in Fix G (v5): VIF=10.65, secondary hub post Fix F;
+    #                correlates with duration_min + loudness through genre/era effects
+    "valence",
     "acousticness", "loudness", "speechiness",
     "instrumentalness", "liveness", "mode", "key",
     # v5 control variables:
@@ -202,12 +218,28 @@ BASE_FEATURES = [
     "duration_min",  # v5 Add B: track length in minutes, capped at 10
 ]
 FEATURES = BASE_FEATURES.copy()
-for col in ["artist_followers", "artist_popularity_api"]:
+# Auto-detect artist augmentation columns from either source:
+#   modal_charted_scrape.py  → artist_followers, artist_popularity_api (Spotify API)
+#   build_artist_features.py → artist_popularity_api, artist_peak_popularity,
+#                              artist_track_count (computed locally, no API)
+for col in [
+    "artist_followers",        # Spotipy API path (modal_charted_scrape.py)
+    "artist_popularity_api",   # both paths
+    "artist_peak_popularity",  # local build path (build_artist_features.py)
+    "artist_track_count",      # local build path (build_artist_features.py)
+]:
     if col in df.columns and df[col].notna().mean() > 0.5:
         FEATURES.append(col)
         print(f"  + Augmented feature included: {col}")
 
 X       = df[FEATURES].copy()
+# Fill any residual NaN in artist feature columns with column medians
+# (~3% of tracks whose artist name could not be matched in artist_features.csv)
+for col in ["artist_popularity_api", "artist_peak_popularity", "artist_track_count",
+            "artist_followers"]:
+    if col in X.columns and X[col].isna().any():
+        X[col] = X[col].fillna(X[col].median())
+
 y_chart = df["is_charted"]
 
 # ─────────────────────────────────────────────────────────────────────────────
