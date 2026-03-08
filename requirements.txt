@@ -10,3 +10,4 @@ numpy>=1.24
 tqdm>=4.65
 spotipy>=2.23
 requests>=2.31
+vaderSentiment>=3.3.2

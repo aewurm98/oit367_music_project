@@ -126,6 +126,61 @@ coverage = len(all_track_norms & agg_norms) / len(all_track_norms) * 100
 print(f"  Coverage of all track artists: {coverage:.1f}%")
 
 
+# ── Last.fm augmentation — add cross-platform reach + country ─────────────────
+# Dataset: artists.csv (1.47M artists from MusicBrainz + Last.fm)
+# Adds: lastfm_listeners_log (log1p of cumulative listeners)
+#       is_us_artist (1=United States, 0=non-US, NaN=unknown country)
+# Match rate: ~65.8% of our 17,437 normalized artist names
+
+LASTFM_CSV = Path("artists.csv")
+
+if LASTFM_CSV.exists():
+    print("\nLoading Last.fm artist data (artists.csv)...")
+    lastfm = pd.read_csv(LASTFM_CSV, low_memory=False,
+                         usecols=["artist_lastfm", "country_mb", "listeners_lastfm"])
+    lastfm["_norm"] = lastfm["artist_lastfm"].apply(normalize_artist)
+
+    # Deduplicate on normalized name, keeping highest listener count
+    lastfm_dedup = (
+        lastfm.sort_values("listeners_lastfm", ascending=False)
+        .drop_duplicates(subset="_norm", keep="first")
+    )
+
+    # Merge into artist_agg on normalized name
+    artist_agg["_norm_key"] = artist_agg["artists"].apply(normalize_artist)
+    artist_agg = artist_agg.merge(
+        lastfm_dedup[["_norm", "listeners_lastfm", "country_mb"]],
+        left_on="_norm_key",
+        right_on="_norm",
+        how="left",
+    ).drop(columns=["_norm", "_norm_key"])
+
+    # Derive features
+    artist_agg["lastfm_listeners_log"] = np.log1p(
+        artist_agg["listeners_lastfm"].fillna(0)
+    )
+    artist_agg["is_us_artist"] = (
+        artist_agg["country_mb"]
+        .str.strip()
+        .eq("United States")
+        .astype("Int64")  # nullable int: 1/0/NaN
+    )
+    # Set NaN where country_mb was null (unknown ≠ non-US)
+    artist_agg.loc[artist_agg["country_mb"].isna(), "is_us_artist"] = pd.NA
+
+    matched_lfm = artist_agg["listeners_lastfm"].notna().sum()
+    print(f"  Last.fm matched: {matched_lfm:,}/{len(artist_agg):,} artists "
+          f"({matched_lfm/len(artist_agg)*100:.1f}%)")
+    print(f"  US artists identified: {(artist_agg['is_us_artist']==1).sum():,}")
+
+    artist_agg = artist_agg.drop(columns=["listeners_lastfm", "country_mb"])
+
+else:
+    print("\nartists.csv not found — skipping Last.fm augmentation.")
+    print("Download from: https://www.kaggle.com/datasets/pieca111/music-artists-popularity")
+    artist_agg["lastfm_listeners_log"] = np.nan
+    artist_agg["is_us_artist"]         = pd.NA
+
 # ── Fill missing values with dataset medians (safety net) ─────────────────────
 
 median_popularity  = artist_agg["artist_popularity_api"].median()
@@ -136,14 +191,24 @@ artist_agg["artist_popularity_api"]  = artist_agg["artist_popularity_api"].filln
 artist_agg["artist_peak_popularity"] = artist_agg["artist_peak_popularity"].fillna(median_peak)
 artist_agg["artist_track_count"]     = artist_agg["artist_track_count"].fillna(median_track_count)
 
-# Final output: artists + 3 feature columns
+# Build output — include Last.fm columns if they were computed
+lastfm_cols = [c for c in ["lastfm_listeners_log", "is_us_artist"]
+               if c in artist_agg.columns and artist_agg[c].notna().any()]
+
 output = artist_agg[
     ["artists", "artist_popularity_api", "artist_peak_popularity", "artist_track_count"]
+    + lastfm_cols
 ].copy()
+
+if lastfm_cols:
+    print(f"\nLast.fm columns included in output: {lastfm_cols}")
 
 output["artist_popularity_api"]  = output["artist_popularity_api"].round(2)
 output["artist_peak_popularity"] = output["artist_peak_popularity"].astype(int)
 output["artist_track_count"]     = output["artist_track_count"].astype(int)
+if "lastfm_listeners_log" in output.columns:
+    output["lastfm_listeners_log"] = output["lastfm_listeners_log"].round(4)
+# is_us_artist stays as nullable int (0/1/NaN)
 
 
 # ── Summary stats ─────────────────────────────────────────────────────────────
