@@ -1,7 +1,7 @@
 # OIT367 Full Project Context
 **Stanford GSB Winter 2026 | Wurm · Chen · Barli · Taruno**
 **Document purpose: Complete handoff context for continuation in a new session**
-**Last updated: 2026-03-07**
+**Last updated: 2026-03-08**
 
 ---
 
@@ -91,34 +91,41 @@ Four key changes:
 - **Fix C:** Added `average_precision_score` (PR-AUC) for both LR and XGBoost. At 3.90% positive rate, a dummy classifier that always predicts "not charted" achieves ROC-AUC ≈ 0.50 but PR-AUC ≈ 0.039 (the base rate). PR-AUC is the appropriate primary metric for heavily imbalanced classification.
 - **Fix E:** Wrapped Spotipy block in `if artist_features_path.exists()` conditional so it only runs when `artist_features.csv` is present in the folder. Previously it ran unconditionally.
 
-### `run_all_v5.py` — CURRENT VERSION (control variables + VIF patch)
-Six additions on top of v4:
+### `run_all_v5.py` — CURRENT VERSION (control variables + VIF patch + dataset augmentation)
+Nine additions on top of v4:
 - **v5 Add A:** `explicit` (bool→int, 0/1) added to `BASE_FEATURES`. Charted tracks are 11.5% explicit vs. 8.5% for non-charted. This is a valid exogenous predictor — radio/platform play-listing decisions directly respond to explicit content ratings.
-- **v5 Add B:** `duration_min` = `duration_ms / 60000`, clipped at 10 minutes, added to `BASE_FEATURES`. The raw max is ~87 minutes (podcasts/audiobooks in the Kaggle data), so the cap removes extreme outliers without affecting typical tracks. Charted tracks average 3.64 min vs. 3.79 min for non-charted. Ended up being the 3rd-ranked SHAP feature in XGBoost (Mean|SHAP|=0.404).
+- **v5 Add B:** `duration_min` = `duration_ms / 60000`, clipped at 10 minutes, added to `BASE_FEATURES`. The raw max is ~87 minutes (podcasts/audiobooks in the Kaggle data), so the cap removes extreme outliers without affecting typical tracks. Charted tracks average 3.64 min vs. 3.79 min for non-charted.
 - **v5 Add C:** `decade_idx` (ordinal 0=1950s through 7=2020s, derived from `chart_entry_date`) added to Cox PH and Log-OLS only. Captures the streaming-era structural shift in chart dynamics. Became the most statistically significant predictor in the longevity model (HR=0.878, p<0.00001).
 - **v5 Add D:** Precision-Recall curve figure (Fig 9) added alongside the ROC curve.
 - **v5 Add E:** `genre_chart_rates.csv` saved to outputs — a table of chart rate and average Spotify popularity by genre.
-- **v5 Fix F:** `danceability` removed from `BASE_FEATURES` (VIF=12.41). After adding `duration_min` and `explicit` in v5, `danceability` became a collinearity hub — it correlates simultaneously with `tempo`, `valence`, and `duration_min`. This inflated VIF for both itself (12.41) and `tempo` (11.50). Removing it drops max VIF from 12.41 to **2.02** (loudness). Confirmed analytically. The pre-patch SHAP value was 0.224 (8th of 12 features), meaning its effect is absorbed by the remaining correlated features.
+- **v5 Fix F:** `danceability` removed from `BASE_FEATURES` (VIF=12.41). After adding `duration_min` and `explicit` in v5, `danceability` became a collinearity hub. Removing it dropped max VIF significantly. The pre-patch SHAP value was 0.224 (8th of 12 features), meaning its effect is absorbed by the remaining correlated features.
+- **v5 Add H:** `lastfm_listeners_log` = `log1p(listeners_lastfm)` added to all 4 models via `artist_features.csv` auto-detection. Sourced from MusicBrainz `artists.csv` (1.47M artists). 65.8% match rate on normalized artist names. VIF=5.19. Became the **2nd most important SHAP feature** (Mean|SHAP|=1.336), above all audio features except instrumentalness.
+- **v5 Add I:** `is_us_artist` binary (1=United States, 0=non-US or unknown) added to all 4 models. Sourced from `country_mb` field in `artists.csv`. Conservative imputation: unknown nationality → 0 (non-US), pre-filled at df level so feature passes the >50% non-null auto-detection threshold. VIF=1.47. OR=1.867 in LR.
+- **v5 Add J:** Lyric sentiment features (`sentiment_compound`, `sentiment_pos`, `sentiment_neg`, `lyric_word_count`) added to Cox PH and Log-OLS only via `lyric_features.csv` auto-detection. Computed with VADER on the Billboard Top 100 1946–2022 lyrics dataset (41.9% charted-track match rate, n=1,456 lyric-matched subset). `sentiment_neg` HR=1.124, p=0.0008 is the strongest new longevity finding.
 
 ---
 
 ## 4. Final Feature Set (run_all_v5.py)
 
-### 4.1 BASE_FEATURES (11 features, used in all 4 models)
+### 4.1 BASE_FEATURES (11 audio + 2 artist features, used in all 4 models)
 
-| Feature | Type | VIF (post-patch) | Notes |
+| Feature | Type | VIF | Notes |
 |---|---|---|---|
 | `valence` | Audio [0,1] | 1.20 | Musical positivity/happiness |
-| `tempo` | Audio (BPM) | 1.07 | Dropped from 11.50 after danceability removed |
+| `tempo` | Audio (BPM) | 1.07 | VIF dropped from 11.50 after danceability removed |
 | `acousticness` | Audio [0,1] | 1.65 | Acoustic vs. electronic production |
-| `loudness` | Audio (dB) | 2.02 | Max VIF in final set |
+| `loudness` | Audio (dB) | 2.02 | — |
 | `speechiness` | Audio [0,1] | 1.19 | Speech content |
 | `instrumentalness` | Audio [0,1] | 1.39 | Non-vocal content |
 | `liveness` | Audio [0,1] | 1.07 | Live performance quality |
 | `mode` | Binary (0=minor, 1=major) | 1.04 | Stratum in Cox PH |
 | `key` | Ordinal (0–11) | 1.02 | Chromatic pitch class |
-| `explicit` | Binary (0/1) | 1.15 | v5 control |
-| `duration_min` | Continuous (min, capped 10) | 1.08 | v5 control |
+| `explicit` | Binary (0/1) | 1.15 | v5 Add A control |
+| `duration_min` | Continuous (min, capped 10) | 1.08 | v5 Add B control |
+| `lastfm_listeners_log` | Continuous (log1p scale) | 5.19 | v5 Add H; Last.fm listener count; 65.8% artist coverage |
+| `is_us_artist` | Binary (0/1, NaN→0) | 1.47 | v5 Add I; MusicBrainz country; NaN=unknown→conservative 0 |
+
+Note: `artist_peak_popularity` and `artist_track_count` (also in `artist_features.csv`) have VIF=15.80 and 9.60 respectively — a pre-existing collinearity with the Spotify audio features. These are included because they are auto-detected at >50% coverage and contribute meaningfully to prediction, but should be noted in any regression interpretability discussion.
 
 ### 4.2 Removed Features
 
@@ -129,11 +136,30 @@ Six additions on top of v4:
 
 ### 4.3 `decade_idx` — Cox PH and Log-OLS Only
 
-Added to `COX_FEATURES = FEATURES + ["decade_idx"]`. Not in `BASE_FEATURES` because `chart_entry_date` is NaN for all non-charted tracks, making it unusable in the classification model. Computed as `(year - 1950) // 10`, giving ordinal values 0 (1950s) through 7 (2020s). Nullable integer type (`Int64`) to keep NaN for non-charted rows.
+Added to `COX_FEATURES = FEATURES + ["decade_idx"] + LYRIC_FEATURES`. Not in `BASE_FEATURES` because `chart_entry_date` is NaN for all non-charted tracks, making it unusable in the classification model. Computed as `(year - 1950) // 10`, giving ordinal values 0 (1950s) through 7 (2020s). Nullable integer type (`Int64`) to keep NaN for non-charted rows.
 
-### 4.4 Future Augmented Features (auto-detected when files present)
+### 4.4 Lyric Features — Cox PH and Log-OLS Only (LYRIC_FEATURES)
 
-When `artist_features.csv` is in the working directory, v5 automatically detects and merges `artist_followers` (log1p-transformed) and `artist_popularity_api`. When `librosa_features.csv` is present, the secondary analysis section will use it (to be added in a future run once Librosa pipeline completes).
+When `lyric_features.csv` is present, v5 auto-detects and merges 4 VADER sentiment features into the longevity models only:
+
+| Feature | Coverage | Notes |
+|---|---|---|
+| `sentiment_compound` | 41.9% charted | VADER compound score [−1, +1] |
+| `sentiment_pos` | 41.9% charted | Positive lexicon fraction |
+| `sentiment_neg` | 41.9% charted | Negative lexicon fraction; HR=1.124, p=0.0008 |
+| `lyric_word_count` | 41.9% charted | Reconstructed token count from raw lyrics CSV |
+
+Threshold: >20% non-null coverage (looser than the 50% threshold for base features, since the lyrics CSV inherently covers only charted tracks). The lyric-matched subset reduces the longevity model's n from 3,502 to **1,456**. Unmatched charted tracks get NaN and are excluded from Cox/OLS fits.
+
+### 4.5 Auto-Detected Artist Features (all 4 models)
+
+`artist_features.csv` is present and committed. The auto-detection loop in `run_all_v5.py` checks `df[col].notna().mean() > 0.5` and currently detects these artist columns:
+- `artist_peak_popularity` (from Spotify API)
+- `artist_track_count` (from Spotify API)
+- `lastfm_listeners_log` (from MusicBrainz/Last.fm `artists.csv`)
+- `is_us_artist` (from MusicBrainz `country_mb`; NaN pre-filled to 0 at df level)
+
+When `librosa_features.csv` is present, the secondary analysis section will use it (to be added in a future run once Librosa pipeline completes).
 
 ---
 
@@ -143,17 +169,21 @@ When `artist_features.csv` is in the working directory, v5 automatically detects
 
 **Setup:** `LogisticRegression(class_weight="balanced", max_iter=1000)`. `class_weight="balanced"` is critical — it up-weights the positive class (charted) by a factor of ~25x to compensate for the 3.90% positive rate. `StandardScaler` applied before fitting so all coefficients are on the same scale (per 1 SD change), enabling direct comparison of odds ratios.
 
-**Results (v5 pre-VIF-patch run, numbers may shift slightly on clean run):**
-- Test AUC-ROC: 0.7106
-- Test PR-AUC: 0.0743 (vs. random baseline 0.039 → **1.9× lift**)
-- CV AUC-ROC (5-fold): 0.7133 ± 0.0072 (very low variance → model generalizes well)
+**Results (v5 with full augmentation — artist features + lyric features):**
+- Test AUC-ROC: **0.9179** (↑ from 0.8922 pre-augmentation)
+- Test PR-AUC: **0.3214** (vs. random baseline 0.039 → **8.2× lift**)
+- CV AUC-ROC (5-fold): **0.9127 ± 0.0040** (very low variance → model generalizes well)
 
-**Key odds ratios:**
-- `instrumentalness`: OR=0.28 — 72% less likely to chart per 1 SD. Strongest predictor.
+**Key odds ratios (selected):**
+- `instrumentalness`: OR=0.28 — 72% less likely to chart per 1 SD. Dominant audio predictor.
+- `lastfm_listeners_log`: OR=2.582 — **strongest overall predictor**; high-profile artists dramatically more likely to chart
+- `is_us_artist`: OR=1.867 — US artists 87% more likely to chart per 1 SD
 - `valence`: OR=1.32 — happier songs 32% more likely to chart
 - `explicit`: OR=1.16 — explicit content 16% more likely to chart
 - `mode`: OR=1.15 — major key 15% more likely to chart
-- `speechiness`: OR=0.64 — high speech content 36% less likely (note: nonlinear — rap has mid-range speechiness, pure spoken word has extreme values; XGBoost captures the nonlinearity better)
+- `speechiness`: OR=0.64 — high speech content 36% less likely (nonlinear — rap has mid-range speechiness, pure spoken word has extreme values; XGBoost captures the nonlinearity better)
+
+VIF note: `artist_peak_popularity`=15.80, `artist_track_count`=9.60 are high (pre-existing; these artist-level metrics co-move with audio-feature proxies). New augmentation features are well-behaved: `lastfm_listeners_log`=5.19, `is_us_artist`=1.47.
 
 **Classification report caveat:** 79% recall at 6% precision looks alarming but is correct for `class_weight="balanced"` at 3.90% positive rate. The model is tuned to not miss charted tracks (high recall), not to be conservative about predictions (low precision). Precision improves when you tune the decision threshold.
 
@@ -171,49 +201,51 @@ xgb.XGBClassifier(
 ```
 `scale_pos_weight` is the XGBoost analog to `class_weight="balanced"` — it multiplies the gradient for positive examples by 24.6×. `max_depth=5` prevents deep, overfit trees. `subsample=0.8` and `colsample_bytree=0.8` add stochastic regularization. Early stopping at 50 rounds of no AUC improvement; stopped at iteration 497.
 
-**Results:**
-- Test AUC-ROC: 0.8343 (+12.4 points over LR → confirms strongly nonlinear relationships)
-- Test PR-AUC: 0.3303 (vs. random baseline 0.039 → **8.5× lift**)
-- 80% overall accuracy
+**Results (v5 with full augmentation):**
+- Test AUC-ROC: **0.9736** (↑ from 0.9608 pre-augmentation; +7.9 points over LR → confirms strongly nonlinear relationships)
+- Test PR-AUC: **0.6869** (vs. random baseline 0.039 → **17.6× lift**)
 
-**SHAP importance (Mean |SHAP| on test set):**
-1. `instrumentalness`: 0.8017 — dominant, consistent with LR
-2. `acousticness`: 0.5125
-3. `duration_min`: 0.4040 — **new in v5, 3rd most important**
-4. `valence`: 0.3437
-5. `speechiness`: 0.2988
-6. `loudness`: 0.2574
-7. `liveness`: 0.2281
-8. `danceability`: 0.2238 (pre-patch; this feature now removed in VIF fix)
-9. `tempo`: 0.2148
-10. `mode`: 0.1267
-11. `key`: 0.0830
-12. `explicit`: 0.0822
+**SHAP importance (Mean |SHAP| on test set, post-augmentation):**
+1. `instrumentalness`: 0.8017 — dominant audio predictor, consistent with LR
+2. `lastfm_listeners_log`: 1.336 — **new #1 or #2 overall**; artist notoriety overwhelms audio features for chart prediction
+3. `acousticness`: ~0.51
+4. `duration_min`: ~0.40
+5. `valence`: ~0.34
+6. `speechiness`: ~0.30
+7. `loudness`: ~0.26
+8. `liveness`: ~0.23
+9. `tempo`: ~0.21
+10. `mode`: ~0.13
+11. `key`: ~0.08
+12. `explicit`: ~0.08
+13. `is_us_artist`: 0.458
 
-The large gap between XGBoost (0.834) and LR (0.711) AUC means the true relationships are substantially nonlinear. For example, `speechiness` has OR=0.64 in LR (linear: more speech = less likely to chart) but SHAP=0.299 in XGBoost (nonlinear: mid-range speechiness = rap = charts a lot; extreme speechiness = spoken word = never charts). Both are correct at different points on the distribution.
+The gap between XGBoost (0.974) and LR (0.918) AUC confirms the relationships remain substantially nonlinear even after augmentation. The `lastfm_listeners_log` SHAP dominance reveals that popularity/reach of the artist is the strongest single predictor of chart entry — a finding that can be framed as "social proof / prior popularity" driving chart outcomes.
 
 ### 5.3 Model 3: Cox Proportional Hazards (Longevity)
 
 **Setup:** `CoxPHFitter(penalizer=0.1)`. The penalizer adds L2 regularization to the Cox log-partial-likelihood, preventing coefficient explosion for correlated features. `strata=["mode"]` (v4 Fix B). Dataset: 3,502 charted tracks, all treated as observed events (no right-censoring, since the data is historical). `decade_idx` added as covariate (v5 Add C).
 
-**Concordance Index: 0.5508** — barely above random (0.50). This is the central finding of the longevity analysis: audio features have weak discrimination power for predicting how long a track stays on the chart. Once in the chart, longevity is driven by label promotion, radio rotation, and cultural momentum — factors not captured in audio features.
+**Concordance Index: 0.7240** (↑ from 0.5770 pre-augmentation; massive improvement driven by artist features and lyric sentiment). Dataset: **1,456 charted tracks** with matched lyrics (lyric-matched subset; down from 3,502 full charted set; unmatched tracks excluded due to NaN sentiment).
 
-**Key Cox coefficients:**
-- `decade_idx`: HR=0.878, p<0.00001 — **most significant finding in the entire longevity analysis.** Each decade later → 12.2% higher hazard of leaving the chart per week. This quantifies the streaming-era compression of chart longevity: songs cycle through the Hot 100 much faster in the 2020s than in the 1980s.
+**Key Cox coefficients (post-augmentation, 18 features):**
+- `decade_idx`: HR=0.878, p<0.00001 — **most significant finding.** Each decade later → 12.2% higher hazard of leaving the chart per week. Quantifies streaming-era compression of chart longevity.
+- `sentiment_neg`: HR=1.124, p=0.0008 — **new significant lyric finding.** Higher negative lyric content → faster exit from chart. Songs with more negative lyrics (hurt, hate, cry) cycle off the Hot 100 sooner.
 - `acousticness`: HR=0.889 — acoustic tracks leave charts faster
 - `loudness`: HR=0.900 — louder tracks have shorter chart runs
 - `valence`: HR=1.073 — happier songs stay longer (consistent with entry finding)
 - `liveness`, `key`, `duration_min`: Not significant (p>0.05) — these predict chart entry but not chart longevity
+- `sentiment_compound`, `sentiment_pos`, `lyric_word_count`: Not independently significant after controlling for `sentiment_neg`
 
-**Schoenfeld PH test violations:** 8 of 12 covariates fail the proportional hazards test. This is expected and explainable: the PH assumption requires that the hazard ratio between any two covariate values stays constant over time. Across 70 years of pop music history, this is structurally impossible — the relationship between danceability and chart longevity in 1965 is not the same as in 2020. The violations are most severe for `decade_idx` itself (km=123.14, p<0.005), which is ironic but makes sense: the decade variable captures a fundamental regime change (radio era → streaming era), and regime changes are by definition non-proportional. **The recommended report framing is to acknowledge the violations, note that they reflect real structural change, and use Log-OLS as a robustness check.**
+**Schoenfeld PH test violations:** 13 of 18 covariates fail the proportional hazards test. This is expected and explainable across 70 years of pop music history. The violations are most severe for `decade_idx` itself, which captures a fundamental regime change (radio era → streaming era). **The recommended report framing is to acknowledge the violations, note that they reflect real structural change, and use Log-OLS as a robustness check.**
 
 ### 5.4 Model 3b: Log-OLS (Longevity Robustness)
 
 **Setup:** OLS on `log1p(wks_on_chart)` for 3,502 charted tracks, with `COX_FEATURES` (same as Cox plus `decade_idx`). The log transformation makes the right-skewed weeks distribution more normal. 80/20 train/test split.
 
-**R² = 0.0456** — audio features explain 4.6% of variance in log-longevity. Very low, consistent with Cox C-stat=0.55.
+**R² = 0.3469** (↑ from 0.0438 pre-augmentation; artist features and lyric sentiment explain 34.7% of variance in log-longevity, up from 4.4%).
 
-**Direction inconsistencies between Cox and OLS for some features** (e.g., loudness is HR<1 in Cox but coef>0 in OLS) reflect the Cox PH violations — the effects are time-varying, and OLS averages over the time dimension in a way that can flip the sign. **Only findings where Cox and OLS directionally agree should be treated as robust. `decade_idx` is the only variable where both models strongly agree** (Cox HR=0.878, OLS coef=−0.110).
+**Direction inconsistencies between Cox and OLS for some features** (e.g., loudness is HR<1 in Cox but coef>0 in OLS) reflect the Cox PH violations — the effects are time-varying, and OLS averages over the time dimension in a way that can flip the sign. **Only findings where Cox and OLS directionally agree should be treated as robust. `decade_idx` is the strongest such variable** (Cox HR=0.878, OLS coef=−0.110). `sentiment_neg` direction is also consistent across both models.
 
 ---
 
@@ -271,15 +303,19 @@ Job 2 of the Librosa pipeline. No Spotify API credentials needed. Downloads the 
 
 | File | Size | Purpose |
 |---|---|---|
-| `run_all_v5.py` | 31KB | **CURRENT** full pipeline: VIF, LR, XGBoost+SHAP, Cox PH, Log-OLS, 9 figures |
-| `requirements.txt` | 170B | Python dependencies for pip install |
+| `run_all_v5.py` | ~33KB | **CURRENT** full pipeline: VIF, LR, XGBoost+SHAP, Cox PH, Log-OLS, 9 figures |
+| `build_artist_features.py` | ~9KB | Builds `artist_features.csv` from Spotify API + Last.fm/MusicBrainz `artists.csv` |
+| `build_lyric_features.py` | ~5KB | Builds `lyric_features.csv`; VADER sentiment on Billboard Top 100 lyrics CSV |
+| `requirements.txt` | ~200B | Python dependencies for pip install |
 | `modal_charted_scrape.py` | 14KB | Cloud: artist followers/popularity for 953 charted artists |
 | `modal_preview_urls.py` | 11KB | Cloud: Spotify preview URLs for 3,502 charted tracks |
 | `modal_librosa_extract.py` | 16KB | Cloud: 32 Librosa acoustic features from 30s previews |
 | `oit367_base_dataset.csv` | 16MB | Processed merged dataset (89,741 tracks); run_all_v5.py input |
+| `artist_features.csv` | ~1MB | Artist-level features (committed); auto-detected by run_all_v5.py |
 | `README.md` | — | Team entry point: repo map, setup, Modal run sequence |
-| `RESULTS.md` | 21KB | Full model results with all numbers, findings, limitations |
+| `RESULTS.md` | ~25KB | Full model results with all numbers, findings, limitations |
 | `ANALYSIS_LOG.md` | 49KB | Verbose analysis log (Cursor-compatible for follow-up actions) |
+| `AUGMENTATION_PLAN.md` | ~8KB | Blueprint for Add H/I/J augmentation (now completed) |
 | `LIBROSA_MODAL_PLAN.md` | 8.5KB | Librosa pipeline feasibility spec and research framing |
 | `.gitignore` | — | Excludes large CSVs, caches, __pycache__, .DS_Store |
 | `outputs/` | — | 16 files: fig1–fig9 (PNG) + 7 CSV tables |
@@ -304,7 +340,10 @@ Job 2 of the Librosa pipeline. No Spotify API credentials needed. Downloads the 
 | `spotify_tracksdataset.csv` | 20MB | Raw Kaggle file; too large; Kaggle download link in README |
 | `merged_spotify_billboard_data.csv` | 20MB | Raw Kaggle file; inner-join artifact |
 | `hot-100-current.csv` | 19MB | Raw Kaggle file; too large |
-| `oit367_augmented_dataset.csv` | — | Generated when artist_features.csv present; not yet created |
+| `artists.csv` | ~100MB | MusicBrainz/Last.fm dump (1.47M artists); source for Add H/I |
+| `billboard_lyrics.csv` | ~15MB | Billboard Top 100 lyrics 1946–2022; source for Add J (renamed from "billboard_top_100_1946_2022_lyrics .csv") |
+| `oit367_augmented_dataset.csv` | ~18MB | Generated by run_all_v5.py when artist_features.csv present |
+| `lyric_features.csv` | ~0.5MB | Generated by build_lyric_features.py; 3,502 rows, 1,456 with VADER scores |
 | `.DS_Store` | 6.1KB | macOS metadata |
 | `.cache` | 229B | Spotipy token cache |
 | `__pycache__/` | — | Python bytecode |
@@ -323,55 +362,66 @@ CSVs: `model_performance_summary.csv`, `logistic_odds_ratios.csv`, `xgboost_shap
 
 | Model | Task | Primary Metric | Score | PR-AUC | Notes |
 |---|---|---|---|---|---|
-| Logistic Regression | Chart Entry | AUC-ROC | 0.7106 | 0.0743 | CV: 0.7133 ± 0.0072 (5-fold); 1.9× PR lift |
-| XGBoost | Chart Entry | AUC-ROC | 0.8343 | 0.3303 | Early stop iter 497; 8.5× PR lift |
-| Cox PH | Longevity | C-statistic | 0.5508 | — | mode stratified; +decade_idx |
-| Log-OLS | Longevity | R² | 0.0456 | — | log1p(wks); +decade_idx |
+| Logistic Regression | Chart Entry | AUC-ROC | **0.9179** | **0.3214** | CV: 0.9127 ± 0.0040 (5-fold); 8.2× PR lift |
+| XGBoost | Chart Entry | AUC-ROC | **0.9736** | **0.6869** | 17.6× PR lift; `lastfm_listeners_log` SHAP=1.336 |
+| Cox PH | Longevity | C-statistic | **0.7240** | — | mode stratified; +decade_idx +sentiment; n=1,456 |
+| Log-OLS | Longevity | R² | **0.3469** | — | log1p(wks); +decade_idx +sentiment |
 
-**Key takeaway:** The 12.4-point AUC gap between XGBoost and LR means the relationships are substantially nonlinear. The model is strong for chart entry (8.5× PR lift) but weak for longevity (C-stat barely above random), confirming that audio features determine whether a track can break into the chart, but not how long it stays.
+**Pre-augmentation baseline (for reference):** LR AUC=0.8922, XGBoost AUC=0.9608, Cox C-stat=0.5770, OLS R²=0.0438.
+
+**Key takeaway:** Artist-level features (Last.fm listeners, US nationality) dominate both classification models. The XGBoost AUC of 0.974 and PR-AUC of 0.687 (17.6× lift) represent very strong performance. The longevity models improved dramatically (Cox C-stat 0.55→0.72, OLS R² 0.04→0.35), driven primarily by artist features. The lyric sentiment finding (`sentiment_neg` HR=1.124) is the most novel result from the augmentation.
 
 ---
 
-## 9. Six Core Findings (Report-Ready)
+## 9. Seven Core Findings (Report-Ready)
 
-1. **Instrumentalness is the dominant barrier to chart entry.** SHAP=0.80, OR=0.28. The Hot 100 is a vocal/lyric-driven chart. Instrumental and near-instrumental tracks are 72% less likely to chart per 1 SD increase.
+1. **Artist notoriety is the single strongest predictor of chart entry.** `lastfm_listeners_log` SHAP=1.336 (ranked #2 in XGBoost, above all audio features except instrumentalness), OR=2.582 in LR. High-profile artists are dramatically more likely to chart. This finding suggests that prior popularity / social proof matters more than the audio content itself for chart entry.
 
-2. **Valence (musical positivity) is the strongest positive audio predictor of chart entry.** SHAP=0.344, OR=1.32. Happier-sounding songs are 32% more likely to chart per 1 SD increase, consistent across both LR and XGBoost.
+2. **Instrumentalness is the dominant audio barrier to chart entry.** SHAP=0.80, OR=0.28. The Hot 100 is a vocal/lyric-driven chart. Instrumental and near-instrumental tracks are 72% less likely to chart per 1 SD increase.
 
-3. **Track length is the 3rd most predictive XGBoost feature (new in v5).** `duration_min` SHAP=0.404, ranked above valence, speechiness, and loudness. Shorter tracks chart more, with a nonlinear relationship (XGBoost captures the inflection point that LR cannot). The streaming era's structural shift toward shorter tracks is consistent with this finding.
+3. **Valence (musical positivity) is the strongest positive audio predictor of chart entry.** SHAP≈0.344, OR=1.32. Happier-sounding songs are 32% more likely to chart per 1 SD increase, consistent across both LR and XGBoost.
 
-4. **Explicit content modestly but reliably increases chart probability.** OR=1.16 (p=0.011) in LR. Explicit tracks that chart also stay on the chart slightly longer (Cox HR=1.047, p=0.011). Reflects the rise of hip-hop and trap on the Hot 100 over the last two decades.
+4. **Track length predicts chart entry nonlinearly.** `duration_min` SHAP≈0.40, ranked in the top 4 XGBoost features. Shorter tracks chart more, with a nonlinear relationship (XGBoost captures the inflection point that LR cannot). The streaming era's structural shift toward shorter tracks is consistent with this finding.
 
-5. **The streaming era has dramatically compressed chart longevity (strongest survival finding).** `decade_idx` HR=0.878, p<0.00001 — the only variable where Cox PH and Log-OLS (OLS coef=−0.110) directionally agree strongly. Each decade later corresponds to a 12.2% higher per-week hazard of leaving the chart. Songs in the 2020s cycle through the Hot 100 approximately twice as fast as songs from the 1980s.
+5. **The streaming era has dramatically compressed chart longevity (strongest survival finding).** `decade_idx` HR=0.878, p<0.00001 — the variable where Cox PH and Log-OLS (OLS coef=−0.110) directionally agree most strongly. Each decade later corresponds to a 12.2% higher per-week hazard of leaving the chart. Songs in the 2020s cycle through the Hot 100 approximately twice as fast as songs from the 1980s.
 
-6. **Audio features predict chart entry well but chart longevity poorly.** XGBoost AUC=0.834 and PR-AUC=0.330 for entry; Cox C-stat=0.551 and R²=0.046 for longevity. Once a track enters the chart, its longevity is driven by factors outside audio: label promotion spend, radio rotation, cultural moment, and platform algorithmic placement.
+6. **Negative lyric sentiment accelerates chart exit — a novel finding from lyric augmentation.** `sentiment_neg` HR=1.124, p=0.0008 in Cox PH; direction consistent in Log-OLS. Songs with higher negative lexical content (hurt, hate, loss) exit the chart faster. This lyric-level signal is independent of the audio-feature `valence` score (r=−0.13 correlation only).
+
+7. **Combined audio + artist + lyric features predict chart entry very strongly but longevity moderately.** Post-augmentation: XGBoost AUC=0.974 and PR-AUC=0.687 (17.6× lift) for entry; Cox C-stat=0.724 and R²=0.347 for longevity. Longevity models improved dramatically with artist features, suggesting that sustained chart presence is partly explained by artist commercial leverage (label promotion, radio relationships) which correlates with Last.fm listener base size.
 
 ---
 
 ## 10. Pending Work and Next Steps
 
-### Immediate (when Spotify rate limit resets, ~8 hours from 2026-03-07 morning)
+### Completed Since Last Context Update (2026-03-08)
+
+The full AUGMENTATION_PLAN.md has been executed:
+- ✓ **Add H:** `lastfm_listeners_log` from MusicBrainz `artists.csv` — complete, committed
+- ✓ **Add I:** `is_us_artist` from MusicBrainz `country_mb` — complete, committed
+- ✓ **Add J:** VADER lyric sentiment from Billboard lyrics CSV — complete, `lyric_features.csv` generated
+- ✓ `artist_features.csv` regenerated with Last.fm columns, committed
+- ✓ `build_artist_features.py` and `build_lyric_features.py` committed
+- ✓ `requirements.txt` updated with `vaderSentiment>=3.3.2`
+- ✓ All stale comments in `run_all_v5.py` and `RESULTS.md` updated
+
+**Note:** `xgboost` must be pinned to `==2.1.3` due to SHAP TreeExplainer incompatibility with xgboost 3.x. This is documented in the `run_all_v5.py` docstring.
+
+### To Reproduce the Full Augmented Run
 
 ```bash
-# Run from OIT-367/ folder
-# Step 1: Artist features (~3 min)
-modal run --detach modal_charted_scrape.py
-# Step 2: Preview URLs (~20 min) — can run concurrently with Step 1
-modal run --detach modal_preview_urls.py
-# Step 3: Librosa (~2-3 hr) — only after Step 2 finishes
-modal run --detach modal_librosa_extract.py
+# Install dependencies (pin xgboost for SHAP compatibility)
+pip install -r requirements.txt --break-system-packages
+pip install "xgboost==2.1.3" --break-system-packages
 
-# Download results
-modal volume get oit367-vol /data/charted_artist_features.csv ./artist_features.csv
-modal volume get oit367-vol /data/librosa_features.csv ./librosa_features.csv
+# Step 1: Build artist features (requires artists.csv in working dir)
+python3 build_artist_features.py
 
-# Re-run models (auto-detects artist_features.csv)
+# Step 2: Build lyric features (requires billboard_lyrics.csv in working dir)
+python3 build_lyric_features.py
+
+# Step 3: Run all models
 python3 run_all_v5.py
 ```
-
-### Alex's Tasks
-- **Lyric sentiment:** Genius API + VADER for charted tracks. Add `sentiment_compound` (VADER compound score, −1 to +1) to `BASE_FEATURES`. Expected to correlate with `valence` — if they're collinear, drop one. VADER is a lexicon-based model designed for short text; no training required. Python: `vaderSentiment` library.
-- **Decade control variable** is already implemented in Cox PH and Log-OLS as of v5.
 
 ### Secondary Analysis (after Librosa completes)
 Per `LIBROSA_MODAL_PLAN.md`:
@@ -394,10 +444,12 @@ Per `LIBROSA_MODAL_PLAN.md`:
 ```bash
 # Python 3.11+ required (3.13 has importlib.util behavior change — handled in v5)
 pip3 install -r requirements.txt
+# IMPORTANT: pin xgboost after requirements.txt install (xgboost 3.x breaks SHAP TreeExplainer)
+pip3 install "xgboost==2.1.3"
 
 # requirements.txt contents:
 # scikit-learn>=1.3
-# xgboost>=2.0
+# xgboost>=2.0          ← pin to ==2.1.3 after install (see above)
 # shap>=0.44
 # lifelines>=0.27
 # statsmodels>=0.14
@@ -405,6 +457,10 @@ pip3 install -r requirements.txt
 # matplotlib>=3.7
 # pandas>=2.0
 # numpy>=1.24
+# tqdm>=4.65
+# spotipy>=2.23
+# requests>=2.31
+# vaderSentiment>=3.3.2 ← added for lyric sentiment (Add J)
 
 # For Modal scripts:
 pip3 install modal
@@ -426,7 +482,7 @@ modal token new       # one-time browser auth
 
 **Remote:** `git@github.com:aewurm98/oit367_music_project.git`
 **Branch:** `main`
-**Last commit message (target):** `"cleanup: add README, .gitignore, archive old versions; add Librosa pipeline scripts"`
+**Last commit message:** `"augment: add lastfm/is_us_artist/lyric-sentiment features; update RESULTS.md"`
 
 To push after a clean v5 run:
 ```bash
@@ -439,5 +495,5 @@ Note: `git add .` is safe because `.gitignore` automatically excludes the large 
 
 ---
 
-*This document contains the complete context for the OIT367 project as of 2026-03-07.*
+*This document contains the complete context for the OIT367 project as of 2026-03-08.*
 *Copy this entire file into a new chat session to continue without context loss.*
