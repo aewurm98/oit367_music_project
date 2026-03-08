@@ -643,8 +643,8 @@ summary = pd.DataFrame({
     "CV / note": [
         f"{cv_auc.mean():.4f} ± {cv_auc.std():.4f}  (5-fold)",
         f"early stop @ iter {xgb_m.best_iteration}",
-        "penalizer=0.1; mode stratified; +decade_idx",
-        "outcome=log1p(wks); +decade_idx",
+        "penalizer=0.1; mode stratified; +decade_idx +sentiment",
+        "outcome=log1p(wks); +decade_idx +sentiment",
     ],
 })
 print("\n" + "="*60 + "\nMODEL PERFORMANCE SUMMARY\n" + "="*60)
@@ -664,7 +664,11 @@ print(f"  ✓ v5 Add B — 'duration_min' added to BASE_FEATURES (capped at 10 m
 print(f"  ✓ v5 Add C — 'decade_idx' added to Cox PH + Log-OLS longevity models")
 print(f"  ✓ v5 Add D — Precision-Recall curve saved as fig9_precision_recall.png")
 print(f"  ✓ v5 Add E — genre_chart_rates.csv saved to outputs/")
-print(f"  ✓ v5 Fix F — 'danceability' removed from BASE_FEATURES (VIF=12.41, drops max VIF to 2.02)")
+print(f"  ✓ v5 Fix F — 'danceability' removed from BASE_FEATURES (VIF=12.41)")
+print(f"  ✓ v5 Fix G — 'tempo' removed from BASE_FEATURES (VIF=10.65 after Fix F)")
+print(f"  ✓ v5 Add H — 'lastfm_listeners_log' added (Last.fm listeners, log-scaled; 65.8% coverage)")
+print(f"  ✓ v5 Add I — 'is_us_artist' binary added (MusicBrainz country; NaN→0 conservative fill)")
+print(f"  ✓ v5 Add J — lyric sentiment added to longevity models (VADER; 41.9% charted coverage)")
 print(f"\nFor Spotipy augmentation (charted artists only, ~3 min):")
 print(f"  modal app stop oit367-spotify          # cancel the stuck full scraper")
 print(f"  modal run --detach modal_charted_scrape.py")

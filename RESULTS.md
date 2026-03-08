@@ -144,37 +144,39 @@ Full table: `outputs/genre_chart_rates.csv`
 
 | Metric | Value |
 |---|---|
-| Test AUC-ROC | **0.8922** *(was 0.7094 without artist features; +18.3 points)* |
-| Test PR-AUC | **0.3076** (random baseline = 0.0390; **7.9× lift**) |
-| CV AUC-ROC (5-fold) | 0.8889 ± 0.0050 |
+| Test AUC-ROC | **0.9179** *(was 0.7094 without artist features; +20.9 points)* |
+| Test PR-AUC | **0.3214** (random baseline = 0.0390; **8.2× lift**) |
+| CV AUC-ROC (5-fold) | 0.9127 ± 0.0040 |
 
 **Classification Report (test set, n=17,949):**
 
 | Class | Precision | Recall | F1 | Support |
 |---|---|---|---|---|
-| No Chart | 0.99 | 0.84 | 0.91 | 17,249 |
-| Charted | 0.18 | 0.85 | 0.30 | 700 |
-| Accuracy | | | 0.84 | 17,949 |
+| No Chart | 0.99 | 0.85 | 0.92 | 17,249 |
+| Charted | 0.19 | 0.84 | 0.31 | 700 |
+| Accuracy | | | 0.85 | 17,949 |
 
 **Odds Ratios (per 1 SD change, standardized features):**
 
 | Feature | Coefficient | Odds Ratio | Interpretation |
 |---|---|---|---|
-| `artist_peak_popularity` | +1.511 | **4.532** | Peak popularity 4.5× chart odds ⭐ (dominant) |
-| `valence` | +0.334 | **1.397** | Happier songs 40% more likely to chart |
-| `mode` | +0.164 | **1.178** | Major key 18% more likely |
-| `explicit` | +0.134 | **1.143** | Explicit content 14% more likely |
-| `duration_min` | +0.037 | 1.037 | Minimal effect |
-| `key` | +0.001 | 1.001 | Not significant |
-| `artist_track_count` | −0.133 | **0.875** | Larger catalogs slightly less likely to chart (marginal) |
-| `liveness` | −0.164 | **0.849** | Live-sounding tracks 15% less likely |
-| `loudness` | −0.323 | **0.724** | Louder tracks 28% less likely |
-| `artist_popularity_api` | −0.324 | **0.724** | ⚠ Opposite sign from peak — collinearity artifact |
-| `acousticness` | −0.325 | **0.725** | Acoustic tracks 28% less likely |
-| `speechiness` | −0.339 | **0.713** | High speech content 29% less likely |
-| `instrumentalness` | −1.040 | **0.354** | Instrumental tracks 65% less likely ⭐ |
+| `artist_peak_popularity` | +1.321 | **3.748** | Peak popularity 3.7× chart odds ⭐ (dominant) |
+| `lastfm_listeners_log` | +0.949 | **2.582** | Cross-platform reach 2.6× chart odds ⭐ (new Add H) |
+| `valence` | +0.277 | **1.319** | Happier songs 32% more likely to chart |
+| `explicit` | +0.250 | **1.283** | Explicit content 28% more likely |
+| `is_us_artist` | +0.624 | **1.867** | US artists 87% more likely to chart ⭐ (new Add I) |
+| `mode` | +0.157 | **1.170** | Major key 17% more likely |
+| `key` | +0.007 | 1.007 | Not significant |
+| `duration_min` | −0.103 | **0.902** | Shorter tracks slightly more likely |
+| `acousticness` | −0.187 | **0.829** | Acoustic tracks 17% less likely |
+| `liveness` | −0.215 | **0.807** | Live-sounding tracks 19% less likely |
+| `artist_track_count` | −0.215 | **0.806** | Larger catalogs slightly less likely (marginal) |
+| `loudness` | −0.238 | **0.789** | Louder tracks 21% less likely |
+| `artist_popularity_api` | −0.284 | **0.753** | ⚠ Opposite sign from peak — collinearity artifact |
+| `speechiness` | −0.312 | **0.732** | High speech content 27% less likely |
+| `instrumentalness` | −1.069 | **0.343** | Instrumental tracks 66% less likely ⭐ |
 
-> The opposite signs for `artist_peak_popularity` (+) and `artist_popularity_api` (−) reflect the VIF=14.11/9.34 collinearity: controlling for average catalog popularity, having an anomalously high peak suggests the current track may be an outlier for the artist. Use XGBoost SHAP for more reliable feature importance when collinearity is present.
+> The opposite signs for `artist_peak_popularity` (+) and `artist_popularity_api` (−) reflect VIF=15.80/9.60 collinearity: controlling for average catalog popularity, having an anomalously high peak suggests a one-hit-wonder dynamic. Use XGBoost SHAP for more reliable feature importance when collinearity is present.
 
 Output: `outputs/logistic_odds_ratios.csv`, `outputs/fig3_roc_curves.png`, `outputs/fig4_odds_ratios.png`, `outputs/fig9_precision_recall.png`
 
@@ -185,17 +187,17 @@ Output: `outputs/logistic_odds_ratios.csv`, `outputs/fig3_roc_curves.png`, `outp
 
 | Metric | Value |
 |---|---|
-| Test AUC-ROC | **0.9608** *(was 0.8216 without artist features; +13.9 points)* |
-| Test PR-AUC | **0.6383** (random baseline = 0.0390; **16.4× lift**) |
-| Best N Estimators | 496 (early stopping at 50 rounds) |
+| Test AUC-ROC | **0.9736** *(was 0.8216 without artist features; +15.2 points)* |
+| Test PR-AUC | **0.6869** (random baseline = 0.0390; **17.6× lift**) |
+| Best N Estimators | 485 (early stopping at 50 rounds) |
 
 **Classification Report (test set, n=17,949):**
 
 | Class | Precision | Recall | F1 | Support |
 |---|---|---|---|---|
-| No Chart | 0.99 | 0.92 | 0.96 | 17,249 |
-| Charted | 0.31 | 0.85 | 0.45 | 700 |
-| Accuracy | | | 0.92 | 17,949 |
+| No Chart | 0.99 | 0.94 | 0.96 | 17,249 |
+| Charted | 0.36 | 0.88 | 0.51 | 700 |
+| Accuracy | | | 0.93 | 17,949 |
 
 > XGBoost with artist features achieves precision=0.31 at recall=0.85 — a major improvement from precision=0.12 in the audio-only model.
 
@@ -203,35 +205,37 @@ Output: `outputs/logistic_odds_ratios.csv`, `outputs/fig3_roc_curves.png`, `outp
 
 | Rank | Feature | Mean |SHAP| | Interpretation |
 |---|---|---|---|
-| 1 | `artist_peak_popularity` | 2.377 | **Dominant predictor** — artist fame ceiling is the strongest single chart predictor ⭐ |
-| 2 | `instrumentalness` | 0.615 | Hot 100 is vocal-driven; unchanged as 2nd after artist feature added |
-| 3 | `artist_track_count` | 0.597 | Catalog size: established artists with larger catalogs chart more ⭐ |
-| 4 | `acousticness` | 0.506 | Acoustic vs. produced sound axis |
-| 5 | `valence` | 0.429 | Musical positivity; consistent across all models |
-| 6 | `artist_popularity_api` | 0.414 | Avg catalog popularity |
-| 7 | `duration_min` | 0.362 | Track length |
-| 8 | `speechiness` | 0.333 | — |
-| 9 | `loudness` | 0.319 | — |
-| 10 | `liveness` | 0.204 | — |
-| 11 | `mode` | 0.192 | — |
-| 12 | `key` | 0.075 | — |
-| 13 | `explicit` | 0.037 | — |
+| 1 | `artist_peak_popularity` | 1.814 | **Dominant predictor** — artist fame ceiling ⭐ |
+| 2 | `lastfm_listeners_log` | 1.336 | Cross-platform reach (Last.fm; new Add H) ⭐ |
+| 3 | `instrumentalness` | 0.711 | Hot 100 is vocal-driven; strong across all models |
+| 4 | `artist_track_count` | 0.503 | Catalog size: established artists chart more ⭐ |
+| 5 | `acousticness` | 0.471 | Acoustic vs. produced sound axis |
+| 6 | `artist_popularity_api` | 0.392 | Avg catalog popularity |
+| 7 | `valence` | 0.337 | Musical positivity; consistent across all models |
+| 8 | `duration_min` | 0.329 | Track length |
+| 9 | `loudness` | 0.279 | — |
+| 10 | `speechiness` | 0.270 | — |
+| 11 | `liveness` | 0.219 | — |
+| 12 | `mode` | 0.204 | — |
+| 13 | `is_us_artist` | 0.458 | US vs. non-US origin (new Add I) |
+| 14 | `key` | 0.081 | — |
+| 15 | `explicit` | 0.048 | — |
 
-> Artist features (rank 1, 3, 6) collectively account for ~51% of total SHAP weight, dwarfing individual audio features. This is the expected finding: who makes the song matters more than the song's audio profile for predicting chart success.
+> Artist/reach features (ranks 1, 2, 4, 6, 13) collectively account for ~59% of total SHAP weight. `lastfm_listeners_log` (Add H) enters as 2nd most important feature, capturing cross-platform reach orthogonal to Spotify popularity. Who makes the song matters more than what the song sounds like.
 
 Output: `outputs/xgboost_shap_importance.csv`, `outputs/fig5_shap_importance.png`
 
 ---
 
 ### 4.3 Model 3: Cox Proportional Hazards — Chart Longevity
-*Survival model on charted tracks (n=3,477 with decade_idx). Stratified on `mode`. Penalizer=0.1.*
-*Includes all features + decade_idx + artist features.*
+*Survival model on charted tracks with matched lyrics (n=1,456). Stratified on `mode`. Penalizer=0.1.*
+*Includes all features + decade_idx + artist features + lyric sentiment (Add J; 41.9% charted coverage).*
 
 | Metric | Value |
 |---|---|
-| Concordance Index (C-stat) | **0.5770** *(was 0.5393 without artist features; +3.8 points)* |
-| Partial AIC | 45,260.79 |
-| Log-likelihood ratio test | 284.24 on 13 df |
+| Concordance Index (C-stat) | **0.7240** *(was 0.5393 without artist features; +18.5 points)* |
+| Partial AIC | 16,073.86 |
+| Log-likelihood ratio test | 528.57 on 18 df |
 
 **Cox Coefficients (significant results highlighted):**
 
@@ -240,22 +244,31 @@ Output: `outputs/xgboost_shap_importance.csv`, `outputs/fig5_shap_importance.png
 | `artist_peak_popularity` | **0.828** | [0.798, 0.858] | <0.00001 | Higher peak → faster chart exit ⭐ (see note) |
 | `artist_popularity_api` | **1.182** | [1.141, 1.225] | <0.00001 | Higher avg popularity → longer chart run ⭐ |
 | `artist_track_count` | **1.144** | [1.103, 1.186] | <0.00001 | Larger catalog → longer chart run |
-| `decade_idx` | **0.909** | [0.873, 0.947] | <0.00001 | Each decade later → faster chart exit |
-| `acousticness` | **0.910** | [0.874, 0.947] | <0.00001 | Acoustic tracks leave faster |
-| `loudness` | **0.901** | [0.868, 0.936] | <0.00001 | Louder tracks have shorter runs |
-| `valence` | **1.049** | [1.013, 1.087] | 0.0079 | Happier songs stay longer |
-| `speechiness` | **1.037** | [1.003, 1.073] | 0.0355 | Speechier tracks stay slightly longer |
-| `liveness` | 0.993 | [0.960, 1.028] | 0.709 | Not significant |
-| `key` | 1.020 | [0.987, 1.054] | 0.247 | Not significant |
-| `explicit` | 1.009 | [0.975, 1.044] | 0.597 | Not significant (controlling for artist) |
-| `duration_min` | 0.998 | [0.961, 1.037] | 0.919 | Not significant |
-| `instrumentalness` | 1.028 | [0.995, 1.062] | 0.099 | Marginally significant |
+| `decade_idx` | **0.590** | [0.545, 0.639] | <0.00001 | Each decade later → faster chart exit ⭐ |
+| `artist_popularity_api` | **1.231** | [1.163, 1.302] | <0.00001 | Higher avg popularity → longer run ⭐ |
+| `artist_peak_popularity` | **0.828** | [0.780, 0.880] | <0.00001 | Higher peak → faster exit (suppressor) |
+| `loudness` | **0.825** | [0.777, 0.876] | <0.00001 | Louder tracks have shorter runs |
+| `acousticness` | **0.840** | [0.793, 0.895] | <0.00001 | Acoustic tracks leave faster |
+| `sentiment_neg` | **1.124** | [1.050, 1.186] | 0.0008 | More negative lyrics → longer run (new Add J) ⭐ |
+| `explicit` | **1.073** | [1.013, 1.137] | 0.0164 | Explicit content slightly longer run |
+| `duration_min` | **1.087** | [1.023, 1.155] | 0.0073 | Longer tracks stay slightly longer |
+| `valence` | **1.068** | [1.006, 1.134] | 0.0315 | Happier songs stay longer |
+| `lastfm_listeners_log` | **0.933** | [0.881, 1.002] | 0.0562 | Marginal: wider reach → faster turnover |
+| `artist_track_count` | 1.056 | [0.987, 1.128] | 0.1125 | Not significant |
+| `sentiment_compound` | 1.074 | [0.994, 1.159] | 0.0697 | Marginal |
+| `speechiness` | 0.994 | [0.940, 1.051] | 0.831 | Not significant |
+| `instrumentalness` | 1.022 | [0.970, 1.076] | 0.413 | Not significant |
+| `is_us_artist` | 0.964 | [0.912, 1.019] | 0.192 | Not significant |
+| `liveness` | 1.001 | [0.948, 1.056] | 0.971 | Not significant |
+| `key` | 0.985 | [0.931, 1.042] | 0.577 | Not significant |
+| `lyric_word_count` | 1.019 | [0.955, 1.086] | 0.569 | Not significant |
+| `sentiment_pos` | 1.005 | [0.940, 1.073] | 0.870 | Not significant |
 
 > **Artist features note:** `artist_peak_popularity` (HR=0.828, p<10⁻⁵) and `artist_popularity_api` (HR=1.182, p<10⁻⁵) have opposite signs — the VIF=14.11 collinearity creates the classic "controlling for X, higher Y predicts lower Z" suppressor effect. Interpretation: controlling for average catalog quality, tracks that represent a *peak* for the artist (peak >> average) tend to have shorter runs, perhaps because they represent one-hit-wonder dynamics. Both are highly significant and survive the Schoenfeld test individually.
 
 > **decade_idx finding updated:** HR=0.909 (vs. 0.878 without artist features). The streaming-era compression effect remains strong but is somewhat attenuated when controlling for artist popularity — suggesting part of what looked like era effects was actually the rising prominence of superstar artists in the streaming era.
 
-**Proportional Hazards Assumption Check:** 9 of 13 covariates fail Schoenfeld test at α=0.05. The most severe violations are `decade_idx` (KM stat=103.91), `acousticness` (45.48), `artist_track_count` (24.48), and `duration_min` (14.45). Artist popularity features (`artist_peak_popularity` and `artist_popularity_api`) *pass* the PH test — their effects are proportional over time.
+**Proportional Hazards Assumption Check:** 13 of 18 covariates fail Schoenfeld test at α=0.05. The most severe violations are `decade_idx` (KM stat=85.29), `acousticness` (30.24), `sentiment_pos` (32.59), and `artist_track_count` (47.38). Lyric sentiment features show mixed results: `sentiment_neg` and `sentiment_pos` fail the PH test, while `sentiment_compound` passes. As noted in PROJECT_CONTEXT.md, PH violations across 70+ years of pop music history are expected — the recommended framing is to acknowledge them and use Log-OLS as a robustness check.
 
 Output: `outputs/cox_summary.csv`, `outputs/fig6_cox_hazard_ratios.png`, `outputs/fig7_kaplan_meier.png`
 
@@ -266,7 +279,7 @@ Output: `outputs/cox_summary.csv`, `outputs/fig6_cox_hazard_ratios.png`, `output
 
 | Metric | Value |
 |---|---|
-| Test R² | **0.0438** *(was 0.0337 without artist features; +1.0 point)* |
+| Test R² | **0.3469** *(was 0.0337 without artist features; +31.3 points)* |
 
 **Coefficients (standardized; outcome = log1p weeks on chart):**
 
@@ -295,21 +308,21 @@ Output: `outputs/ols_longevity_coefficients.csv`
 
 ## 5. Model Performance Summary
 
-| Model | Task | Metric | Without Artist Features | With Artist Features | Δ |
+| Model | Task | Metric | Audio Only (baseline) | With All Augmentation | Δ |
 |---|---|---|---|---|---|
-| Logistic Regression | Chart Entry | AUC-ROC | 0.7094 | **0.8922** | +18.3 pts |
-| Logistic Regression | Chart Entry | PR-AUC | 0.0738 | **0.3076** | +23.4 pts |
-| XGBoost | Chart Entry | AUC-ROC | 0.8216 | **0.9608** | +13.9 pts |
-| XGBoost | Chart Entry | PR-AUC | 0.3130 | **0.6383** | +32.5 pts |
-| Cox PH | Longevity | C-statistic | 0.5393 | **0.5770** | +3.8 pts |
-| Log-OLS | Longevity | R² | 0.0337 | **0.0438** | +1.0 pt |
+| Logistic Regression | Chart Entry | AUC-ROC | 0.7094 | **0.9179** | +20.9 pts |
+| Logistic Regression | Chart Entry | PR-AUC | 0.0738 | **0.3214** | +24.8 pts (8.2× baseline) |
+| XGBoost | Chart Entry | AUC-ROC | 0.8216 | **0.9736** | +15.2 pts |
+| XGBoost | Chart Entry | PR-AUC | 0.3130 | **0.6869** | +37.4 pts (17.6× baseline) |
+| Cox PH | Longevity | C-statistic | 0.5393 | **0.7240** | +18.5 pts |
+| Log-OLS | Longevity | R² | 0.0337 | **0.3469** | +31.3 pts (10.3× improvement) |
 
 ---
 
 ## 6. Key Findings
 
 ### Finding 1: Artist fame is the dominant chart predictor — by far
-`artist_peak_popularity` SHAP=2.377 dwarfs all audio features (next highest: instrumentalness=0.615). The artist's catalog popularity (mean and peak) accounts for ~51% of total XGBoost SHAP weight. Adding just three locally-computed artist features increased XGBoost AUC-ROC from 0.82 → 0.96 and PR-AUC from 0.31 → 0.64 (16.4× over random). **The most important predictor of chart success is who makes the song, not what the song sounds like.**
+`artist_peak_popularity` SHAP=1.814 remains the dominant predictor, joined by `lastfm_listeners_log` SHAP=1.336 (Add H — cross-platform reach). Artist and reach features together account for ~59% of total XGBoost SHAP weight. Full augmentation increased XGBoost AUC-ROC from 0.82 → 0.97 and PR-AUC from 0.31 → 0.69 (17.6× over random). **The most important predictor of chart success is who makes the song, not what the song sounds like.**
 
 ### Finding 2: Instrumentalness is the dominant audio-only barrier
 Among pure audio features (controlling for artist fame), `instrumentalness` SHAP=0.615 and LR OR=0.354 remain the strongest predictor. Tracks with primarily non-vocal content are 65% less likely to reach the Hot 100 per 1 SD increase. The Billboard Hot 100 is fundamentally a vocal/lyric-driven chart.
@@ -324,7 +337,7 @@ Among pure audio features (controlling for artist fame), `instrumentalness` SHAP
 `decade_idx` is the only variable where Cox (HR=0.909) and OLS (coef=−0.149) directionally agree AND it is the strongest predictor in both longevity models. Each decade later → ~9.1% higher hazard of leaving the chart per week. Songs from the 2020s cycle through the Hot 100 approximately twice as fast as songs from the 1980s. Slightly attenuated (vs. HR=0.878 in audio-only model) after controlling for artist popularity, suggesting part of the original era effect captured the rise of superstar streaming artists.
 
 ### Finding 6: Audio features predict chart entry well but longevity poorly
-XGBoost (with artist features) achieves AUC-ROC=0.961 and PR-AUC=0.638 for chart entry. In contrast, longevity models achieve C-stat=0.577 and R²=0.044. Once a track charts, its longevity is driven by exogenous factors (label promotion, radio rotation, cultural momentum) that neither audio features nor artist popularity metrics capture fully.
+XGBoost (with full augmentation) achieves AUC-ROC=0.974 and PR-AUC=0.687 for chart entry. The longevity models improved dramatically with augmentation: C-stat=0.724 and R²=0.347 — though this is partly because the lyric-matched subset (n=1,456) skews toward more prominent charted tracks with available lyrics, which may inflate longevity predictability. Audio features alone still explain little of longevity variance once artist fame is controlled for.
 
 ---
 
@@ -356,8 +369,9 @@ XGBoost (with artist features) achieves AUC-ROC=0.961 and PR-AUC=0.638 for chart
 1. **Spotify audio features are proprietary black-box measures.** Danceability, valence, and instrumentalness are computed by Spotify using undisclosed algorithms.
 2. **Artist popularity features are computed from the Kaggle dataset, not the live Spotify API.** `artist_popularity_api` = mean track popularity across the artist's tracks in the 114k-track dataset. This is a snapshot proxy, not real-time artist-level popularity. Values reflect the dataset's sample rather than the full Spotify catalog.
 3. **Kaggle dataset is engineered, not a random sample.** ~1,000 tracks per genre. Charting rates differ significantly by genre (country 28.7% vs. ambient ~2%), so genre-level chart rates should not be interpreted as representing the broader music market.
-4. **3.9% positive rate limits classifier performance.** PR-AUC is the appropriate primary metric. XGBoost PR-AUC of 0.638 (16.4× baseline) represents very strong lift.
-5. **Cox PH assumption violated for 9/13 covariates.** Time-varying effects are expected across 70 years of music industry history. Log-OLS is included as robustness check; only `decade_idx` survives both models directionally.
+4. **3.9% positive rate limits classifier performance.** PR-AUC is the appropriate primary metric. XGBoost PR-AUC of 0.687 (17.6× baseline) represents very strong lift.
+5. **Cox PH assumption violated for 13/18 covariates.** Time-varying effects are expected across 70 years of music industry history. Log-OLS is included as robustness check; only `decade_idx` survives both models directionally.
+6. **Lyric sentiment (Add J) finds `sentiment_neg` as the only significant lyric predictor of longevity** (Cox HR=1.124, p=0.0008): tracks with more negative lyric content stay on chart slightly longer, possibly reflecting emotional depth or drama that sustains listener engagement. Coverage is 41.9% of charted tracks; results should be treated as exploratory.
 6. **artist_peak_popularity VIF=14.11.** Collinear with `artist_popularity_api`. LR coefficients for both are suppressor-affected — interpret with caution. XGBoost SHAP is more reliable.
 7. **No lyric sentiment features.** Genius API + VADER analysis planned for charted tracks subset (Alex's task).
 8. **No Librosa acoustic features.** Feasibility plan documented in `LIBROSA_MODAL_PLAN.md`. Pipeline scripts ready: `modal_preview_urls.py` → `modal_librosa_extract.py`.
