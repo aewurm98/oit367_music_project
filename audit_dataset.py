@@ -20,11 +20,10 @@ print("LOADING FILES")
 print("=" * 70)
 
 spotify = pd.read_csv(f"{BASE}/spotify_tracksdataset.csv")
-bb      = pd.read_csv(f"{BASE}/hot-100-current.csv")
 base    = pd.read_csv(f"{BASE}/oit367_base_dataset.csv")
 
 print(f"Spotify source: {spotify.shape[0]:,} rows, {spotify['track_id'].nunique():,} unique track_ids")
-print(f"Billboard source: {bb.shape[0]:,} rows, {bb['track_id'].nunique():,} unique track_ids")
+print(f"Charted in base: {base['is_charted'].sum():,} tracks")
 print(f"Base dataset: {base.shape[0]:,} rows  (should equal unique spotify track_ids)")
 print(f"  Charted: {base['is_charted'].sum():,} | Non-charted: {(base['is_charted']==0).sum():,}")
 print(f"\nBase dataset columns:\n{list(base.columns)}\n")
@@ -77,7 +76,7 @@ examples = (
 print(examples.head(30).to_string())
 
 # 1c. Cross-ID duplication IN THE CHARTED SET specifically
-charted_ids = set(bb["track_id"].unique())
+charted_ids = set(base[base["is_charted"] == 1]["track_id"])
 charted_dedup = spotify_dedup[spotify_dedup["track_id"].isin(charted_ids)].copy()
 charted_dupes_groups = charted_dedup.groupby("_name_artist")["track_id"].count()
 charted_cross_id = charted_dupes_groups[charted_dupes_groups > 1]

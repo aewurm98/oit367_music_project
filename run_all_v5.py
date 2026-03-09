@@ -114,52 +114,15 @@ OUT = Path("outputs")
 OUT.mkdir(exist_ok=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# DATA PREP  (skipped if oit367_base_dataset.csv already exists)
+# DATA PREP  — reads oit367_final_dataset.csv; fails if missing
 # ─────────────────────────────────────────────────────────────────────────────
-BASE_CSV = Path("oit367_base_dataset.csv")
+BASE_CSV = Path("oit367_final_dataset.csv")
 
 if not BASE_CSV.exists():
-    print("Building base dataset from raw files...")
-
-    def normalize_text(text):
-        if pd.isna(text): return ""
-        text = str(text).lower().strip()
-        text = re.sub(r'\s+(feat\.?|ft\.?|featuring|with)\s+.*', '', text)
-        text = re.sub(r'[^a-z0-9\s]', '', text)
-        return text.strip()
-
-    for fname in ["spotify_tracksdataset.csv", "merged_spotify_billboard_data.csv"]:
-        if not Path(fname).exists():
-            print(f"ERROR: Required file not found: {fname}")
-            sys.exit(1)
-
-    spotify   = pd.read_csv("spotify_tracksdataset.csv")
-    bb_weekly = pd.read_csv("merged_spotify_billboard_data.csv")
-
-    spotify_dedup = (
-        spotify
-        .sort_values("track_genre")
-        .drop_duplicates(subset="track_id", keep="first")
-        .reset_index(drop=True)
-    )
-
-    bb_weekly["chart_week"] = pd.to_datetime(bb_weekly["chart_week"], errors="coerce")
-    bb_agg = (
-        bb_weekly
-        .groupby("track_id", as_index=False)
-        .agg(
-            peak_pos        =("peak_pos",    "min"),
-            wks_on_chart    =("wks_on_chart","max"),
-            chart_entry_date=("chart_week",  "min"),
-        )
-    )
-
-    df = spotify_dedup.merge(bb_agg, on="track_id", how="left")
-    df["is_charted"]   = df["peak_pos"].notna().astype(int)
-    df["wks_on_chart"] = df["wks_on_chart"].fillna(0).astype(int)
-    df["is_popular"]   = (df["popularity"] >= 80).astype(int)
-    df.to_csv(BASE_CSV, index=False)
-    print(f"  Saved {len(df):,} rows → {BASE_CSV}")
+    print("ERROR: oit367_final_dataset.csv not found.")
+    print("Run build_final_dataset.py first to create it.")
+    print("  Prerequisites: oit367_base_dataset.csv, augmented_deduped_dataset_with_artists.csv")
+    sys.exit(1)
 
 df = pd.read_csv(BASE_CSV)
 print(f"\nDataset: {len(df):,} tracks  |  "
@@ -190,7 +153,7 @@ print(f"  duration_min — charted mean: {df[df['is_charted']==1]['duration_min'
 # then: modal volume get oit367-vol /data/charted_artist_features.csv ./artist_features.csv
 # ─────────────────────────────────────────────────────────────────────────────
 artist_features_path = Path("artist_features.csv")
-if artist_features_path.exists():
+if artist_features_path.exists() and "artist_peak_popularity" not in df.columns:
     print("\nFound artist_features.csv — merging Spotipy augmentation…")
     artist_df = pd.read_csv(artist_features_path)
     df = df.merge(artist_df, on="artists", how="left")
@@ -249,6 +212,13 @@ for col in [
     "artist_track_count",      # local build path (build_artist_features.py)
     "lastfm_listeners_log",    # Last.fm cross-platform reach (build_artist_features.py)
     "is_us_artist",            # Last.fm artist nationality binary (build_artist_features.py)
+    "is_male_artist",          # NEW v6: artist gender binary (teammate enrichment)
+    "artist_age",              # NEW v6: artist age (teammate enrichment)
+    "is_mainstream_genre",     # NEW v6: genre classification (teammate enrichment)
+    # EXCLUDED due to VIF failures:
+    #   "artist_scrobbles_log"        — VIF≈615, near-perfect collinear with artist_listeners_monthly_log
+    #   "artist_listeners_monthly_log"— VIF≈615, near-perfect collinear with artist_scrobbles_log
+    #   "time_signature"              — VIF=19.13, exceeds threshold of 10
 ]:
     if col in df.columns and df[col].notna().mean() > 0.5:
         FEATURES.append(col)
@@ -262,6 +232,16 @@ for col in ["artist_popularity_api", "artist_peak_popularity", "artist_track_cou
     if col in X.columns and X[col].isna().any():
         X[col] = X[col].fillna(X[col].median())
 
+
+# NEW — binary columns: unknown → 0 (conservative)
+for col in ["is_male_artist", "is_mainstream_genre"]:
+    if col in X.columns and X[col].isna().any():
+        X[col] = X[col].fillna(0)
+# NEW — continuous columns: unknown → median
+for col in ["artist_age", "artist_scrobbles_log", "artist_listeners_monthly_log"]:
+    if col in X.columns and X[col].isna().any():
+        X[col] = X[col].fillna(X[col].median())
+        
 y_chart = df["is_charted"]
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -379,10 +359,23 @@ fi.to_csv(OUT / "xgboost_shap_importance.csv", index=False)
 # ─────────────────────────────────────────────────────────────────────────────
 lyric_features_path = Path("lyric_features.csv")
 LYRIC_FEATURES = []
-if lyric_features_path.exists():
+lyric_cols = ["sentiment_compound", "sentiment_pos", "sentiment_neg", "lyric_word_count"]
+if "sentiment_compound" in df.columns:
+    # Already baked into the final dataset — skip merge, just populate LYRIC_FEATURES
+    print("\nLyric sentiment columns already present in dataset (from oit367_final_dataset.csv)")
+    matched = df.loc[df["is_charted"] == 1, "sentiment_compound"].notna().sum()
+    print(f"  Lyric sentiment matched: {matched} charted tracks "
+          f"({matched/df['is_charted'].sum()*100:.1f}%)")
+    for col in lyric_cols:
+        if col in df.columns:
+            coverage = df.loc[df["is_charted"] == 1, col].notna().mean()
+            if coverage > 0.20:
+                LYRIC_FEATURES.append(col)
+                print(f"  + Lyric feature included in longevity models: {col} "
+                      f"(coverage: {coverage:.1%})")
+elif lyric_features_path.exists():
     print("\nFound lyric_features.csv — merging sentiment for longevity models…")
     lyric_df = pd.read_csv(lyric_features_path)
-    lyric_cols = ["sentiment_compound", "sentiment_pos", "sentiment_neg", "lyric_word_count"]
     available_lyric_cols = [c for c in lyric_cols if c in lyric_df.columns]
     # Merge on track_id (most reliable key)
     df = df.merge(

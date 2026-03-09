@@ -2,9 +2,10 @@
 OIT367 — Modal: Fetch Spotify Preview URLs  (Job 1 of 2 for Librosa pipeline)
 Stanford GSB Winter 2026 | Wurm / Chen / Barli / Taruno
 
-Fetches the 30-second preview_url for each of the 3,502 charted tracks
-using sp.track(track_id). Preview URLs point to Spotify's CDN (no API
-call needed to download them) and are consumed by modal_librosa_extract.py.
+Fetches the 30-second preview_url for each charted track using sp.track(track_id).
+Uses oit367_base_dataset.csv (3,502 charted, pre-dedup). Preview URLs point to
+Spotify's CDN (no API call needed to download them) and are consumed by
+modal_librosa_extract.py.
 
 ──────────────────────────────────────────────────────────────
 RUN ORDER (after Spotify rate limit resets)

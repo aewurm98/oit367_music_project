@@ -47,6 +47,14 @@ Then re-run the model pipeline:
 The pipeline auto-detects artist_features.csv and merges it.
 
 ──────────────────────────────────────────────────────────────
+DATASET NOTE
+──────────────────────────────────────────────────────────────
+
+This script reads oit367_base_dataset.csv (3,502 charted tracks, pre-dedup).
+The v6 pipeline uses oit367_final_dataset.csv (2,157 charted). Artist features
+from this run are compatible with both; run_all_v5.py auto-detects and merges.
+
+──────────────────────────────────────────────────────────────
 DESIGN NOTES
 ──────────────────────────────────────────────────────────────
 

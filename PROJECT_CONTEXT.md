@@ -1,7 +1,7 @@
 # OIT367 Full Project Context
 **Stanford GSB Winter 2026 | Wurm · Chen · Barli · Taruno**
 **Document purpose: Complete handoff context for continuation in a new session**
-**Last updated: 2026-03-08**
+**Last updated: 2026-03-09 — v6 final pipeline**
 
 ---
 
@@ -13,7 +13,7 @@
 1. **Chart Entry (binary classification):** Is-charted = 1 or 0? Logistic Regression + XGBoost.
 2. **Chart Longevity (survival analysis):** Among tracks that charted, how many weeks? Cox Proportional Hazards + Log-OLS robustness check.
 
-**Dataset scope:** 89,741 unique Spotify tracks, of which 3,502 appeared on the Billboard Hot 100 (3.90% positive rate). The heavy class imbalance is real and important — it means ROC-AUC can be misleadingly optimistic, so Precision-Recall AUC is reported as the primary metric.
+**Dataset scope (v6):** 78,390 unique Spotify tracks, of which 2,157 appeared on the Billboard Hot 100 (2.75% positive rate). v5 baseline: 89,741 tracks, 3,502 charted (3.90%). The heavy class imbalance is real and important — it means ROC-AUC can be misleadingly optimistic, so Precision-Recall AUC is reported as the primary metric.
 
 ---
 
@@ -27,10 +27,10 @@ Two Kaggle datasets are joined:
 Kaggle's "Spotify Tracks Dataset." Contains one row per track-genre pair — the same track can appear multiple times if Spotify classifies it under multiple genres. Columns include: `track_id`, `artists`, `album_name`, `track_name`, `popularity`, `duration_ms`, `explicit`, and all Spotify audio features (`danceability`, `energy`, `key`, `loudness`, `mode`, `speechiness`, `acousticness`, `instrumentalness`, `liveness`, `valence`, `tempo`, `time_signature`, `track_genre`).
 
 **`hot-100-current.csv`** (~19MB)
-Weekly Billboard Hot 100 snapshots. Each row is one track's appearance in one chart week. Columns include `track_id`, `chart_week`, `peak_pos`, `wks_on_chart`.
+Weekly Billboard Hot 100 snapshots. Each row is one track's appearance in one chart week. Columns include `title`, `performer`, `chart_week`, `peak_pos`, `wks_on_chart` (no `track_id` — requires matching to Spotify).
 
 **`merged_spotify_billboard_data.csv`** (~20MB)
-A pre-existing join of the two above that came with the Kaggle data. This file was initially used as the dataset but was discovered to be an **inner join**, meaning it only contained tracks that had charted. This made the positive rate artificially 100% and would have produced a useless model — there was no negative class.
+A pre-existing join of Spotify + Billboard that has `track_id`. The pipeline uses this file (not `hot-100-current.csv`) as the Billboard source when rebuilding from raw. It was initially used directly but was discovered to be an **inner join**, meaning it only contained tracks that had charted. This made the positive rate artificially 100% and would have produced a useless model — there was no negative class.
 
 ### 2.2 The Inner Join Bug and Fix
 
@@ -65,7 +65,7 @@ df["is_charted"] = df["peak_pos"].notna().astype(int)      # binary label
 df["wks_on_chart"] = df["wks_on_chart"].fillna(0).astype(int)
 ```
 
-This produced `oit367_base_dataset.csv` — 89,741 rows, 3.90% positive rate. This file is committed to the repo and is the starting point for all model runs.
+This produced `oit367_base_dataset.csv` — 89,741 rows, 3.90% positive rate. v6 uses `build_final_dataset.py` to create `oit367_final_dataset.csv` (78,390 rows, cross-ID dedup, teammate enrichment) — the current pipeline input.
 
 ### 2.3 Why `chart_entry_date` Only Exists for Charted Tracks
 
@@ -360,16 +360,44 @@ CSVs: `model_performance_summary.csv`, `logistic_odds_ratios.csv`, `xgboost_shap
 
 ## 8. Model Performance Summary
 
+**v6 (current — cross-ID dedup, oit367_final_dataset.csv, 78,390 rows):**
+
 | Model | Task | Primary Metric | Score | PR-AUC | Notes |
 |---|---|---|---|---|---|
-| Logistic Regression | Chart Entry | AUC-ROC | **0.9179** | **0.3214** | CV: 0.9127 ± 0.0040 (5-fold); 8.2× PR lift |
-| XGBoost | Chart Entry | AUC-ROC | **0.9736** | **0.6869** | 17.6× PR lift; `lastfm_listeners_log` SHAP=1.336 |
-| Cox PH | Longevity | C-statistic | **0.7240** | — | mode stratified; +decade_idx +sentiment; n=1,456 |
-| Log-OLS | Longevity | R² | **0.3469** | — | log1p(wks); +decade_idx +sentiment |
+| Logistic Regression | Chart Entry | AUC-ROC | **0.9144** | **0.2750** | CV: 0.9139 ± 0.0037 (5-fold); 10.0× PR lift |
+| XGBoost | Chart Entry | AUC-ROC | **0.9655** | **0.4402** | 16.0× PR lift; early stop @193 |
+| Cox PH | Longevity | C-statistic | **0.7526** | — | mode stratified; +decade_idx +sentiment; n=856; 4/19 PH violations |
+| Log-OLS | Longevity | R² | **0.2118** | — | log1p(wks); n=856; lower due to dedup (see RESULTS.md §4.4) |
 
-**Pre-augmentation baseline (for reference):** LR AUC=0.8922, XGBoost AUC=0.9608, Cox C-stat=0.5770, OLS R²=0.0438.
+**v5 (prior — without cross-ID dedup, 89,741 rows, for reference only):**
 
-**Key takeaway:** Artist-level features (Last.fm listeners, US nationality) dominate both classification models. The XGBoost AUC of 0.974 and PR-AUC of 0.687 (17.6× lift) represent very strong performance. The longevity models improved dramatically (Cox C-stat 0.55→0.72, OLS R² 0.04→0.35), driven primarily by artist features. The lyric sentiment finding (`sentiment_neg` HR=1.124) is the most novel result from the augmentation.
+| Model | Task | Primary Metric | Score | PR-AUC | Notes |
+|---|---|---|---|---|---|
+| Logistic Regression | Chart Entry | AUC-ROC | 0.9179 | 0.3214 | CV: 0.9127 ± 0.0040 |
+| XGBoost | Chart Entry | AUC-ROC | 0.9733 | 0.6867 | |
+| Cox PH | Longevity | C-statistic | 0.7240 | — | n=1,456; 13/19 PH violations |
+| Log-OLS | Longevity | R² | 0.3469 | — | Inflated by duplicate observations |
+
+**Pre-augmentation baseline (audio only):** LR AUC=0.7106, XGBoost AUC=0.8343, Cox C-stat=0.5508, OLS R²=0.0438.
+
+**Key takeaway (v6):** Top predictors are fully consistent with v5: `artist_peak_popularity` (SHAP=1.618) and `lastfm_listeners_log` (SHAP=1.153) dominate classification. `decade_idx` HR=0.514 is the strongest longevity predictor (faster chart rotation in streaming era). `sentiment_neg` finding is now marginal (p=0.051) after proper dedup reduces the lyric sample from 1,456 to 856. Cox C-stat improved to 0.7526 and Schoenfeld violations dropped from 13 to 4, indicating a methodologically cleaner model.
+
+---
+
+## 9. v6 Changes (2026-03-09)
+
+**Dataset:** `oit367_final_dataset.csv` (78,390 rows) replaces `oit367_base_dataset.csv` (89,741 rows).
+- Cross-ID deduplication: same song with multiple Spotify IDs collapsed (3,502 → 2,157 charted; 86,239 → 76,233 non-charted)
+- Teammate enrichment added: `is_male_artist`, `artist_age`, `artist_scrobbles_log`, `artist_listeners_monthly_log`, `is_mainstream_genre`, `artist_genre_count`, `time_signature`
+- Lyric sentiment features pre-baked into dataset (no runtime merge needed)
+
+**Pipeline changes to `run_all_v5.py`:**
+- `BASE_CSV = Path("oit367_final_dataset.csv")` (was `oit367_base_dataset.csv`)
+- `artist_features.csv` merge skipped when columns already present in dataset (prevents column duplication)
+- `lyric_features.csv` merge skipped when `sentiment_compound` already in dataset; `LYRIC_FEATURES` populated from existing columns
+- VIF-failing columns excluded from auto-detection: `artist_scrobbles_log` (VIF≈615), `artist_listeners_monthly_log` (VIF≈615), `time_signature` (VIF=19.13)
+
+**New file:** `FEATURE_REFERENCE.md` — complete dataset and feature map for teammates.
 
 ---
 

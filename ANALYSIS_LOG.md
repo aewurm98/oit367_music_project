@@ -5,6 +5,8 @@
 **Last updated:** March 2026
 **Script:** `run_all_v3.py` | **Outputs:** `outputs/`
 
+> **Note:** This log documents the v3 pipeline (89,741 rows, 3.90% charted). The current pipeline is v6 (run_all_v5.py, oit367_final_dataset.csv, 78,390 rows, 2.75% charted). For up-to-date results, see [RESULTS.md](RESULTS.md).
+
 > **For Cursor users:** Each section ends with a `## TODO` block listing follow-up actions.
 > Paste this file into a Cursor chat and ask it to "implement the TODOs in Section X" for guided next steps.
 
