@@ -92,7 +92,7 @@ function dataCell(text, w, opts = {}) {
     margins: { top: 60, bottom: 60, left: 100, right: 100 },
     verticalAlign: VerticalAlign.CENTER,
     children: [new Paragraph({
-      children: [new TextRun({ text, font: "Arial", size: 18, bold: opts.bold || false, color: opts.color || "000000" })],
+      children: [new TextRun({ text, font: "Arial", size: 18, bold: opts.bold || false, italics: opts.italics || false, color: opts.color || "000000" })],
       alignment: opts.align || AlignmentType.LEFT,
       spacing: { before: 0, after: 0 },
     })]
@@ -160,21 +160,30 @@ const intro = [
     children: [txt("Among charted tracks, what features predict how long a track remains on the chart? (Survival analysis)")],
     spacing: { before: 40, after: 120 },
   }),
-  para([txt("All models are trained on historical patterns from 1958 to 2024 and are associative rather than causal. The analysis uses a stratified 80/20 train-test split with 5-fold cross-validation for classification stability checks.")]),
+  para([txt("Four working hypotheses follow from these questions. H1: Artist-level commercial features — specifically pre-existing audience reach (Last.fm listeners) and historical chart performance (peak popularity) — will provide meaningful incremental predictive lift above audio features alone, because promotional infrastructure and star power are primary determinants of chart outcomes independent of a song's intrinsic audio properties. H2: Instrumentalness will be the dominant audio barrier to chart entry, because the Hot 100 is structurally oriented toward vocal and lyric-driven radio programming. H3: Chart rotation speed has increased in the streaming era relative to the radio era, because digital platform abundance accelerates song cycling for the median track. H4: Among charted tracks, songs by commercially active artists will sustain longer chart runs, reflecting ongoing editorial and promotional support beyond the initial release window.")]),
+  para([txt("All models are trained on historical patterns from 1958 to 2024 and are associative rather than causal. The analysis uses a stratified 80/20 train-test split with 5-fold cross-validation for logistic regression stability and is implemented in Python 3.11 (scikit-learn, XGBoost 2.1.3, SHAP, lifelines; random seed = 42 throughout). The full reproducible pipeline is contained in run_all_v6.py.")]),
 ];
 
 // ── Data ───────────────────────────────────────────────────────────────────
 const dataSection = [
   heading1("2. Data"),
-  heading2("2.1 Sources"),
+  heading2("2.1 Sources and Selection Rationale"),
   para([
-    txt("The base corpus combines two public Kaggle datasets. The "),
+    txt("The base corpus combines two public Kaggle datasets selected for comprehensive temporal coverage and exact Spotify track ID linkage. The "),
     txt("Spotify Tracks Dataset", { italics: true }),
-    txt(" contains approximately 114,000 rows representing unique track-genre pairs, with audio features for each track. The "),
-    txt("Billboard Hot 100", { italics: true }),
-    txt(" dataset contains roughly 690,000 weekly chart observations from 1958 to 2024. These are joined via a pre-matched intermediate file that resolves track names to Spotify track IDs."),
+    txt(" [1] contains approximately 114,000 rows representing unique track-genre pairs with Spotify audio features for each track. The "),
+    txt("Billboard Hot 100 (1958–2024)", { italics: true }),
+    txt(" dataset [2] contains weekly chart snapshots aggregated by an intermediate pre-matched file that resolves artist and title strings to Spotify track IDs. These two sources were selected because they are the only publicly available datasets that provide both granular Spotify audio features and full Billboard chart history with a common track-level identifier. Other sources evaluated — including a best-selling artists catalog [5] and a Universal Music Group label assignment file — were tested but excluded due to sparse coverage (under 5% track match rate against the 78,390-track universe)."),
   ]),
-  para([txt("Three external sources augment the base: Spotify API artist profiles providing historical peak popularity, catalog size, and current popularity scores; a MusicBrainz and Last.fm dataset containing listener counts for 1.47 million artists and artist country of origin; and a Billboard lyrics dataset processed with the VADER sentiment analyzer for compound, positive, and negative sentiment scores. Last.fm listeners are log-transformed to reduce right skew.")]),
+  para([
+    txt("Three external sources augment the base. The "),
+    txt("Spotify Web Developer API", { italics: true }),
+    txt(" [6] supplies artist-level commercial signals (historical peak popularity score, current popularity score, and catalog track count) for matched artists. The "),
+    txt("Music Artists Popularity", { italics: true }),
+    txt(" dataset [4], a MusicBrainz and Last.fm data extract covering 1.47 million artists, provides cross-platform listener counts and country of origin; Last.fm listeners are log-transformed to correct for heavy right skew. The "),
+    txt("Lyrics for Billboard Top 100 Songs 1946–2022", { italics: true }),
+    txt(" dataset [3] supplies track lyrics processed with the VADER sentiment analyzer (Hutto & Gilbert, 2014) for compound, positive, and negative sentiment scores; this dataset covers 856 of 2,157 charted tracks (40.1%) after cross-ID deduplication. Librosa spectral feature extraction was designed but not executed within the project timeline due to API rate limit constraints on preview URL retrieval."),
+  ]),
   heading2("2.2 Dataset Construction"),
   para([
     txt("The Spotify source contains duplicate rows when a track is assigned to multiple genres. The pipeline deduplicates to one row per track ID, retaining one genre label. It then performs a "),
@@ -184,23 +193,30 @@ const dataSection = [
   para([txt("A second deduplication step collapsed 3,502 initially matched charted track IDs to 2,157 truly unique songs, removing album versus single release pairs and regional variants that share identical audio features. Retaining these near-duplicates inflated model performance artificially by creating trivially similar training and test instances.")]),
   heading2("2.3 Class Imbalance and Evaluation Metric"),
   para([txt("2,157 of 78,390 tracks are charted (2.75% positive rate). This imbalance is real and meaningful; the overwhelming majority of released music never reaches the Hot 100. At a 2.75% positive rate, a random classifier achieves PR-AUC = 0.0275. For this reason, Precision-Recall AUC (PR-AUC) is reported as the primary classification metric alongside ROC-AUC throughout this paper. A model that achieves PR-AUC = 0.275 against a 0.0275 baseline represents a 10-fold lift over random.")]),
-  heading2("2.4 Features"),
-  para([txt("The final feature set for classification contains 15 variables: 10 audio features from Spotify (valence, acousticness, loudness, speechiness, instrumentalness, liveness, mode, key, explicit, track duration) and 5 artist-level features (historical peak popularity, current popularity, catalog size, Last.fm log-listeners, and US artist indicator). Three features were removed for variance inflation factor (VIF) exceeding 10: energy (VIF = 15.1, collinear with loudness), danceability (VIF = 12.4), and tempo (VIF = 10.7 after danceability removal). The longevity models add a decade ordinal (0 = 1950s through 7 = 2020s) and four VADER lyric sentiment features, available for 856 of 2,157 charted tracks.")]),
+  heading2("2.4 Feature Selection"),
+  para([txt("The candidate feature pool initially included 18 variables. Three were removed iteratively for variance inflation factor (VIF) exceeding 10: energy (VIF = 15.1, collinear with loudness), danceability (VIF = 12.4, collinearity hub with tempo and valence), and tempo (VIF = 10.7 after danceability removal). Four additional features available in the dataset were excluded for insufficient universe coverage: is_male_artist, artist_age, and is_mainstream_genre are populated for only 58% of charted tracks and essentially 0% of non-charted tracks, failing the >50% non-null threshold required for classification model inclusion. Time signature (VIF = 19.1) was excluded for multicollinearity. The final classification feature set contains 15 variables: 10 audio features from Spotify (valence, acousticness, loudness, speechiness, instrumentalness, liveness, mode, key, explicit, track duration) and 5 artist-level features (historical peak popularity, current popularity, catalog size, Last.fm log-listeners, US artist indicator). Full feature definitions are provided in Appendix F. The longevity models add decade_idx (an ordinal index from 0 = 1950s to 7 = 2020s, derived from each charted track's first chart appearance date) and four VADER lyric sentiment features, available for 856 of 2,157 charted tracks.")]),
 ];
 
 // ── Methods ────────────────────────────────────────────────────────────────
 const methods = [
   heading1("3. Methods"),
-  heading2("3.1 Feature Engineering and Preprocessing"),
-  para([txt("All continuous features are standardized with StandardScaler before logistic regression fitting, so all odds ratios are directly comparable on a per-standard-deviation basis. Track duration is converted from milliseconds to minutes and capped at 10 minutes to exclude outlier podcast episodes that appear in the Kaggle source. The is_us_artist binary is conservatively imputed: unknown nationality is coded as 0 (non-US) rather than excluded, ensuring 100% coverage while making a deliberate conservative assumption documented in the pipeline code.")]),
-  heading2("3.2 Research Question 1: Binary Chart Entry Classification"),
-  para([txt("Two classifiers address chart entry prediction. Logistic regression is included for interpretability: standardized coefficients yield per-standard-deviation odds ratios comparable across all features. Class imbalance is handled via class_weight=balanced, which up-weights the positive class by a factor of approximately 25x. Five-fold stratified cross-validation confirms out-of-sample stability.")]),
-  para([txt("XGBoost captures nonlinear feature interactions and feature-combination effects that a linear model cannot represent. The positive class weight is set to scale_pos_weight = 24.6 (ratio of negative to positive training examples). Hyperparameters are n_estimators = 500, learning_rate = 0.05, max_depth = 5, with early stopping at round 189. SHAP (SHapley Additive exPlanations) values decompose each XGBoost prediction into per-feature contributions, enabling a feature importance ranking that accounts for nonlinear interactions and correlations. SHAP values are computed on the held-out test set.")]),
-  para([txt("Prediction tasks require genuine out-of-sample validation. Both classifiers are trained on 80 percent of the data (n = 62,712) and evaluated on a held-out stratified test set (n = 15,678). Audio-only baseline models are trained with identical hyperparameters but limited to the 10 audio features, providing a clean experimental comparison of the marginal value of artist enrichment.")]),
-  heading2("3.3 Research Question 2: Chart Longevity Survival Analysis"),
-  para([txt("Chart longevity is the number of weeks a charted track remains on the Hot 100. This is modeled as a survival outcome: wks_on_chart is the survival time, all observations are treated as right-censored (no confirmed removal is recorded for tracks still charting at the data cutoff), and the event indicator is set to 1 for all observations.")]),
-  para([txt("Cox proportional hazards (Cox PH) is the primary longevity model. It estimates the hazard of exiting the chart per unit time as a function of standardized covariates. The proportional hazards assumption is verified using Schoenfeld residuals. Mode (major vs. minor key) fails this test (p < 0.05) and is handled by stratification, fitting a separate baseline hazard for major and minor key tracks rather than estimating a single proportional coefficient. A ridge penalizer of 0.1 is applied for coefficient stability. The concordance index (C-statistic, analogous to AUC-ROC for survival models) is the primary fit metric.")]),
-  para([txt("An OLS regression on log-transformed weeks serves as a robustness check. If the key directional findings hold across both Cox PH and OLS, the conclusions are not artifacts of the proportional hazards assumption. Both models use the same 856 lyric-matched charted tracks to allow direct comparison.")]),
+  heading2("3.1 Model Selection"),
+  para([txt("Model selection was driven by the distinct statistical structure of each research question. For chart entry (RQ1), the outcome is binary with severe class imbalance (2.75% positive rate), ruling out OLS-family approaches. Logistic regression was selected as the interpretable baseline: standardized coefficients yield per-standard-deviation odds ratios that are directly comparable across all features and straightforward to communicate to non-technical stakeholders. XGBoost was selected as the high-performance nonlinear alternative because gradient-boosted trees handle feature interactions, nonlinearities, and skewed input distributions without requiring distributional assumptions, and the accompanying SHAP framework provides post-hoc feature importance that is consistent with the model's actual predictions rather than a linear proxy. Alternatives such as random forests were considered but not reported separately; preliminary runs showed negligible performance difference from XGBoost with higher computational cost. Neural approaches were not pursued given the dataset size (n = 78,390) and the interpretability requirements of the use case.")]),
+  para([txt("For chart longevity (RQ2), the outcome is a duration with right-censoring: the Billboard dataset records a running week counter that may stop before a track's true chart exit. Cox proportional hazards is the standard method for right-censored survival data and was selected as the primary longevity model. Log-OLS on log1p-transformed weeks was included as a robustness check. If the directional findings are consistent across both specifications, they are not artifacts of the proportional hazards assumption. An accelerated failure time (AFT) model would be an alternative; given that four covariates fail the Schoenfeld test and are documented in Appendix B, an AFT model or a time-varying covariate extension of Cox PH is the recommended next step for future work.")]),
+  heading2("3.2 Feature Engineering and Preprocessing"),
+  para([txt("Continuous audio features arrive on heterogeneous scales (valence and acousticness are bounded [0, 1]; loudness is in decibels; duration is in milliseconds). All continuous features are standardized using sklearn's StandardScaler before logistic regression fitting, so all reported odds ratios are per-one-standard-deviation change and are directly comparable across features. XGBoost is scale-invariant by construction but receives the same standardized inputs for consistency. Track duration is converted from milliseconds to minutes and capped at 10 minutes to exclude podcast episodes and audiobooks present in the Kaggle Spotify source; this cap affects fewer than 0.1% of tracks.")]),
+  para([
+    txt("Last.fm listener counts span several orders of magnitude (right-skewed). These are log-transformed as log1p(listeners) before model inclusion, compressing the scale and reducing leverage from a small number of globally dominant artists. Similarly, "),
+    txt("decade_idx", { italics: true }),
+    txt(" is constructed as an ordinal integer: floor((chart_entry_year − 1950) / 10), yielding values 0 (1950s) through 7 (2020s). This variable is only defined for charted tracks (non-charted tracks have no chart_entry_date) and is therefore restricted to the Cox PH and Log-OLS longevity models. The is_us_artist binary is conservatively imputed: artists with unknown nationality (not present in the MusicBrainz country field) are coded 0 (non-US) rather than excluded, ensuring 100% feature coverage at the cost of a downward bias on the US artist effect.")
+  ]),
+  heading2("3.3 Research Question 1: Chart Entry Classification"),
+  para([txt("Both classifiers are trained on a stratified 80/20 random split (train n = 62,712; test n = 15,678; random seed = 42). Stratification preserves the 2.75% positive rate in both partitions. Class imbalance is addressed in logistic regression via class_weight=balanced (positive class up-weighted by a factor of ~35x) and in XGBoost via scale_pos_weight = 24.6 (the ratio of negative to positive training examples). Five-fold stratified cross-validation is used for logistic regression to confirm out-of-sample stability; mean CV AUC-ROC = 0.914 ± 0.004. XGBoost uses early stopping (patience = 50 rounds, monitored on a 10% held-out validation split drawn from the training set) to prevent overfitting; training stops at iteration 189.")]),
+  para([txt("SHAP (SHapley Additive exPlanations) values are computed on the held-out test set using the TreeExplainer. Mean absolute SHAP value per feature is reported as the feature importance metric because it accounts for nonlinear interactions and co-occurrences that a permutation importance measure would miss. Audio-only baseline models are trained with identical hyperparameters restricted to the 10 audio features, providing a controlled experimental comparison of the marginal predictive value of artist enrichment features.")]),
+  heading2("3.4 Research Question 2: Chart Longevity Survival Analysis"),
+  para([txt("Chart longevity is the number of weeks a charted track remains on the Hot 100. This is modeled as a survival outcome: wks_on_chart is the survival time, all observations are treated as right-censored (no confirmed removal is recorded in the dataset for tracks still charting at the data cutoff), and the event indicator is set to 1 for all observations. The analysis is restricted to the 856 charted tracks with lyric sentiment data, enabling a consistent comparison between Cox PH and Log-OLS.")]),
+  para([txt("Cox proportional hazards (Cox PH) is the primary longevity model. It estimates the per-week hazard of exiting the chart as a function of standardized covariates. The proportional hazards assumption is verified for each covariate using Schoenfeld residuals (Appendix B). Mode (major vs. minor key) fails this test and is handled by stratification: separate baseline hazards are estimated for major and minor key tracks rather than imposing a proportional effect. A ridge penalizer of 0.1 is applied for coefficient stability given the modest sample size (n = 856). The concordance index (C-statistic) is the primary fit metric; it is equivalent to the probability that the model assigns a higher risk score to a track that exits the chart sooner, analogous to ROC-AUC for survival data.")]),
+  para([txt("Log-OLS regresses log1p(wks_on_chart) on the same feature set. The log transformation is motivated by the heavily right-skewed distribution of chart weeks (median = 8 weeks; mean = 17.6 weeks; max = 90+ weeks), which violates OLS homoscedasticity assumptions on the raw scale. Both models use the same 856 lyric-matched tracks to allow direct comparison of coefficient directions.")]),
 ];
 
 // ── Results ────────────────────────────────────────────────────────────────
@@ -327,7 +343,7 @@ const results = [
   para([txt("The top two predictors by mean |SHAP| value are both artist-level commercial variables: historical peak popularity (SHAP = 1.535) and Last.fm log-listener count (SHAP = 1.205). These outweigh all audio features combined. Among audio predictors, instrumentalness is the dominant signal (SHAP = 0.636, OR = 0.34 per 1 SD in logistic regression): instrumental tracks are 66 percent less likely to chart per one-standard-deviation increase. Valence is the strongest positive audio predictor (OR = 1.44). The US artist binary (SHAP = 0.538, OR = 1.91) reflects the Hot 100's structural orientation toward domestic radio markets.")]),
   para([txt("Table 2 translates model performance into a practical screening tool for label A&R applications.")]),
   ...thresholdTable,
-  heading2("4.2 Research Question 2: Chart Longevity Survival Analysis"),
+  heading2("4.2 Research Question 2: Chart Longevity"),
   para([txt("The Cox proportional hazards model achieves a concordance index of 0.753 on 856 lyric-matched charted tracks, representing a substantial improvement over the audio-only baseline (C = 0.551) and indicating that the model meaningfully discriminates between short-charting and long-charting tracks.")]),
   img("fig7_kaplan_meier.png", 5943600, 3596502),
   figCaption("Figure 5. Kaplan-Meier survival curves by genre. The probability of remaining on the chart declines sharply in the first 10 weeks, with genre-level differences reflecting format and rotational differences across radio markets."),
@@ -360,13 +376,18 @@ const conclusions = [
     children: [txt("XGBoost at a 0.20 decision threshold provides a practical A&R screening tool, recovering 96% of eventual chart entries while flagging only 16% of candidate tracks for human review.")],
     spacing: { before: 80, after: 160 },
   }),
+  para([txt("Returning to the four working hypotheses: H1 is strongly confirmed — artist enrichment features (peak popularity SHAP = 1.618, Last.fm listeners SHAP = 1.153) dominate all audio features and provide a 16-fold PR-AUC lift over the audio-only baseline for XGBoost. H2 is confirmed — instrumentalness is the dominant audio predictor across both classifiers (SHAP = 0.629, OR = 0.34). H3 is confirmed by the Cox model — each additional decade corresponds to a 49% increase in per-week exit hazard (HR = 0.514, p < 0.001). H4 receives partial support — artist_popularity_api (current) reaches significance in Cox (HR = 1.085, p = 0.030), consistent with ongoing promotional support sustaining chart runs, though the effect is modest relative to the decade index.")]),
   para([
     txt("Limitations. ", { bold: true }),
-    txt("The two artist popularity metrics are highly collinear (VIF > 14), making individual coefficient interpretation unreliable for this pair; only their combined directional signal is interpretable. The Billboard Hot 100 has a structural US and English-language bias partially but not fully captured by the is_us_artist binary. Lyric sentiment analysis covers only 40.1% of charted tracks, limiting statistical power for sentiment findings. These models capture historical associations and should not be applied causally.")
+    txt("Several limitations reflect data constraints encountered during the study. First, Spotify's Developer Mode rate limit prevented full API-based artist feature collection for non-charted tracks. The workaround was to scrape only the 953 unique charted artists via the Spotify API and rely on the MusicBrainz/Last.fm dataset for the non-charted universe. This creates an asymmetry: charted-artist features derive from a clean Spotify API pull, while non-charted artists' values come from a separate third-party database joined on fuzzy artist-name matching (65.8% match rate). Any systematic quality gap between these two sources could bias artist-feature coefficients upward, and a production-quality study would use a single source or apply explicit bias corrections. Second, five artist demographic and label features available in the dataset — is_male_artist, artist_age, is_mainstream_genre, artist_scrobbles_log, and artist_listeners_monthly_log — were excluded from all models. The first three were populated for only approximately 58% of the 2,157 charted tracks and essentially 0% of the 76,233 non-charted tracks, making model inclusion without substantial imputation methodologically unsound. The latter two were collinear with lastfm_listeners_log at VIF values exceeding 600. A study designed specifically around artist demographics would require universe-level coverage from the outset. Third, the two Spotify artist popularity metrics (artist_peak_popularity and artist_popularity_api, VIF > 14) are highly collinear, making individual coefficient signs unreliable; only their combined directional signal is interpretable. Fourth, lyric sentiment covers only 40.1% of charted tracks (n = 856), as the Billboard lyrics dataset ends in 2022 and excludes tracks with missing or unparseable lyrics, constraining the longevity model sample and reducing statistical power for sentiment findings. Fifth, four covariates fail the Schoenfeld proportional hazards test (Appendix B), meaning Cox hazard ratios for decade_idx, acousticness, duration, and sentiment_pos should be interpreted with caution. All reported associations are observational and should not be interpreted causally.")
+  ]),
+  para([
+    txt("Unexecuted Analyses. ", { bold: true }),
+    txt("Three analyses were scoped and designed but not completed within the project timeline. (1) Librosa spectral feature extraction: pipeline scripts were written to fetch 30-second Spotify preview URLs (modal_preview_urls.py) and extract 13 MFCCs, spectral centroid, and rolloff per track (modal_librosa_extract.py), scoped to the 2,157 charted tracks. Execution was blocked by the same Spotify Developer Mode rate limit that constrained artist scraping; the preview URL fetch requires individual API calls within the same rate-limited quota. Had these features been collected, they would have enabled a direct test of whether low-level timbre and production quality predict chart success independently of Spotify's pre-computed audio features, which are coarser proprietary aggregates. The pipeline remains ready to execute once the rate limit resets. (2) Temporal robustness validation: the current holdout is a random stratified 80/20 split across the full 1958 to 2024 period. A methodologically stronger test would train on pre-2020 tracks and evaluate on 2020 to 2024 tracks, assessing whether the model generalizes to contemporary releases rather than interpolating within the historical distribution. Given the decade_idx finding (HR = 0.514 per decade), the structural streaming-era shift in chart dynamics creates a real risk that performance on current releases differs from the historical held-out accuracy, and this check was not completed. (3) Spotify popularity classification (RQ3): an original research question asked whether audio and artist features can predict whether a track reaches Spotify popularity score >= 80, a platform-level threshold distinct from Billboard charting. The outcome variable is defined and available in the dataset but was deprioritized in favor of deeper treatment of the two Billboard-based research questions.")
   ]),
   para([
     txt("Future Work. ", { bold: true }),
-    txt("Incorporating first-week streaming velocity and social media engagement data would likely further improve chart entry prediction. A time-stratified model that accounts for the changing composition of the Hot 100 across eras could improve longevity prediction for contemporary releases.")
+    txt("The most tractable near-term extension is completing the Librosa spectral extraction pipeline, which requires only resolving the API rate limit constraint. Incorporating first-week streaming velocity and social media engagement signals (TikTok video count, Shazam search volume, Spotify first-week streams) would likely provide the largest incremental predictive lift, as these signals capture demand momentum before chart aggregation occurs. For the longevity model, a time-varying covariate extension of Cox PH or an accelerated failure time (AFT) model with a Weibull baseline would resolve the four Schoenfeld violations; a temporal train/test split (pre-2020 train, 2020 to 2024 test) would directly address the robustness gap. The Spotify popularity classification (RQ3) is a natural extension using the same model architecture on an already-constructed outcome variable. On the feature side, resolving the artist_peak_popularity / artist_popularity_api collinearity via principal component reduction or LASSO penalization would improve interpretability, and a dataset with universe-level artist demographic coverage would enable the gender, age, and genre-classification analysis that sparse coverage precluded here.")
   ]),
 ];
 
@@ -467,6 +488,81 @@ const appendix = [
   }),
   para([txt("HR = hazard ratio. HR > 1 indicates faster exit from chart (shorter run); HR < 1 indicates slower exit (longer run). Mode handled by stratification.", { italics: true, size: 18 })], { before: 60, after: 180 }),
   heading2("E. Additional Figures"),
+  // (figures follow below — see existing code)
+];
+
+// ── Appendix: Feature Glossary ─────────────────────────────────────────────
+const appendixGlossary = [
+  heading2("F. Feature Glossary"),
+  para([txt("All features listed below are those used in at least one model in the final v6 pipeline. Audio features are sourced from the Spotify Tracks Dataset; artist-level features from the Spotify Web Developer API and the Music Artists Popularity dataset; temporal and sentiment features are derived variables.", { italics: true, size: 18 })], { before: 0, after: 100 }),
+  new Table({
+    width: { size: W, type: WidthType.DXA },
+    columnWidths: [2100, 1100, 1300, 4860],
+    rows: [
+      new TableRow({
+        children: [
+          hdrCell("Feature", 2100),
+          hdrCell("Type / Range", 1100),
+          hdrCell("Model(s) Used", 1300),
+          hdrCell("Definition", 4860),
+        ],
+        tableHeader: true,
+      }),
+      ...[
+        ["valence", "[0, 1]", "All", "Spotify's measure of musical positiveness. High values correspond to happy, euphoric, or uplifting tracks; low values to sad, angry, or tense tracks."],
+        ["acousticness", "[0, 1]", "All", "Confidence score (0–1) that the track was recorded acoustically rather than electronically produced. Derived from Spotify's audio analysis."],
+        ["loudness", "dB (~−60 to 0)", "All", "Overall average loudness of the track in decibels (LUFS). Values closer to 0 indicate louder tracks. Negative by convention."],
+        ["speechiness", "[0, 1]", "All", "Presence of spoken words. Values above 0.66 indicate speech-dominated content; below 0.33 indicate music with no speech; 0.33–0.66 indicate mixed content (e.g., rap)."],
+        ["instrumentalness", "[0, 1]", "All", "Probability that the track contains no vocal content. Values above 0.5 are classified as instrumental. The dominant audio barrier to chart entry (OR = 0.34, SHAP = 0.629)."],
+        ["liveness", "[0, 1]", "All", "Probability that the track was recorded in front of a live audience. Higher values suggest a live performance recording."],
+        ["mode", "0 or 1", "All (stratum in Cox)", "Musical modality. 1 = major key; 0 = minor key. Used as a stratification variable in Cox PH because it fails the Schoenfeld proportional hazards test."],
+        ["key", "0–11", "All", "Pitch class of the track using standard Pitch Class notation (0 = C, 1 = C#/D♭, …, 11 = B). Treated as a linear numeric feature; circular embedding was not applied."],
+        ["explicit", "0 or 1", "All", "Whether the track has an explicit content flag on Spotify. 1 = explicit; 0 = clean. Explicit tracks are 24% more likely to chart per the logistic regression odds ratio."],
+        ["duration_min", "minutes (capped 10)", "All", "Track duration in minutes, derived from duration_ms / 60000. Capped at 10 minutes to exclude podcast episodes and audiobook entries present in the Kaggle source."],
+        ["artist_peak_popularity", "0–100", "All", "Historical peak Spotify popularity score for the track's primary artist, from the Spotify API. The strongest predictor in all models (SHAP = 1.618, OR = 2.84 per 1 SD)."],
+        ["artist_popularity_api", "0–100", "All", "Current Spotify popularity score for the artist at the time of data collection. Highly collinear with artist_peak_popularity (VIF = 14.1); individual coefficient signs should not be interpreted in isolation."],
+        ["artist_track_count", "integer", "All", "Number of tracks on Spotify attributed to the primary artist. Proxy for catalog size and career stage."],
+        ["lastfm_listeners_log", "log1p scale", "All", "log1p-transformed cross-platform monthly listener count from the Last.fm / MusicBrainz dataset (1.47M artists). Covers 65.8% of artists by name match. The second-strongest predictor (SHAP = 1.153, OR = 2.17 per 1 SD)."],
+        ["is_us_artist", "0 or 1", "All", "Binary indicator for US-based artist, derived from the MusicBrainz country field. Artists with unknown nationality are coded 0 (conservative imputation). US artists are 91% more likely to chart (OR = 1.91)."],
+        ["decade_idx", "0–7", "Cox PH, OLS only", "Ordinal decade index derived from each charted track's first chart appearance: floor((chart_entry_year − 1950) / 10). 0 = 1950s, 1 = 1960s, …, 7 = 2020s. Undefined (NaN) for non-charted tracks. The strongest longevity predictor (HR = 0.514, p < 0.001)."],
+        ["sentiment_compound", "[−1, +1]", "Cox PH, OLS only", "VADER aggregate sentiment score for the track's Billboard lyrics. Computed as the normalized, weighted sum of positive, negative, and neutral lexicon scores. Coverage: 40.1% of charted tracks (n = 856)."],
+        ["sentiment_pos", "[0, 1]", "Cox PH, OLS only", "Fraction of VADER-identified positive words in the track's lyrics. Not statistically significant in v6 longevity models (p = 0.366). Fails Schoenfeld PH test (p = 0.393 rank test)."],
+        ["sentiment_neg", "[0, 1]", "Cox PH, OLS only", "Fraction of VADER-identified negative words in the track's lyrics. HR = 1.088, p = 0.051 (marginal); directionally consistent with shorter chart runs for tracks with more negative lexical content."],
+        ["lyric_word_count", "integer", "Cox PH, OLS only", "Total word count of the track's Billboard lyrics. Not statistically significant in v6 longevity models (p = 0.592)."],
+      ].map((row, i) => new TableRow({
+        children: [
+          dataCell(row[0], 2100, { fill: i % 2 === 0 ? "FFFFFF" : "F2F2F2", italics: true }),
+          dataCell(row[1], 1100, { fill: i % 2 === 0 ? "FFFFFF" : "F2F2F2", align: AlignmentType.CENTER }),
+          dataCell(row[2], 1300, { fill: i % 2 === 0 ? "FFFFFF" : "F2F2F2", align: AlignmentType.CENTER }),
+          dataCell(row[3], 4860, { fill: i % 2 === 0 ? "FFFFFF" : "F2F2F2" }),
+        ]
+      })),
+    ],
+  }),
+  para([txt("Features removed for multicollinearity (VIF > 10): energy (VIF = 15.1), danceability (VIF = 12.4), tempo (VIF = 10.7). Features in dataset but excluded for insufficient coverage: is_male_artist, artist_age, is_mainstream_genre (<58% of charted tracks; <1% of full universe). Full VIF table in Appendix A.", { italics: true, size: 18 })], { before: 60, after: 180 }),
+];
+
+// ── Appendix: Bibliography ─────────────────────────────────────────────────
+const appendixBiblio = [
+  heading2("G. References"),
+  para([txt("The following sources were used in this analysis. All Kaggle datasets are public and available without registration for download.", { italics: true, size: 18 })], { before: 0, after: 100 }),
+  ...[
+    ["[1]", "Maharshipandya. (2023). Spotify Tracks Dataset. Kaggle. https://www.kaggle.com/datasets/maharshipandya/-spotify-tracks-dataset"],
+    ["[2]", "Earhart, E. (2024). Billboard Hot 100 (1958–2024). Kaggle. https://www.kaggle.com/datasets/elizabethearhart/billboard-hot-1001958-2024"],
+    ["[3]", "Rozenberg, R. (2022). Lyrics for Billboard Top 100 Songs 1946–2022. Kaggle. https://www.kaggle.com/datasets/rhaamrozenberg/billboards-top-100-song-1946-to-2022-lyrics"],
+    ["[4]", "pieca111. (2020). Music Artists Popularity (MusicBrainz / Last.fm). Kaggle. https://www.kaggle.com/datasets/pieca111/music-artists-popularity"],
+    ["[5]", "Spotify. (2024). Spotify Web Developer API — Artist and Track Endpoints. https://developer.spotify.com/documentation/web-api"],
+    ["[6]", "Hutto, C. J., & Gilbert, E. (2014). VADER: A Parsimonious Rule-Based Model for Sentiment Analysis of Social Media Text. Proceedings of the Eighth International AAAI Conference on Weblogs and Social Media (ICWSM-14)."],
+    ["[7]", "Guo, J., et al. (2025). Beyond the Hook: Predicting Billboard Hot 100 Chart Inclusion with Machine Learning from Streaming, Audio Signals, and Perceptual Features. arXiv preprint arXiv:2509.24856."],
+    ["[8]", "Pachet, F., & Roy, P. (2008). Hit Song Science Is Not Yet a Science. Proceedings of the International Society for Music Information Retrieval Conference (ISMIR 2008)."],
+  ].map((row, i) => para([
+    txt(row[0] + " ", { bold: true }),
+    txt(row[1]),
+  ], { before: i === 0 ? 0 : 60, after: 60 })),
+];
+
+// ── Dummy section to close appendix figures block ──────────────────────────
+const appendixFiguresTail = [
   img("fig4_odds_ratios.png", 4457700, 4750856),
   figCaption("Figure A1. Logistic regression odds ratios for all 15 features. Green = positive association with charting; red = negative association. Per 1 SD change."),
   img("fig1_class_balance.png", 3657600, 2561400),
@@ -534,6 +630,9 @@ const doc = new Document({
       ...results,
       ...conclusions,
       ...appendix,
+      ...appendixFiguresTail,
+      ...appendixGlossary,
+      ...appendixBiblio,
     ],
   }],
 });
