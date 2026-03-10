@@ -1,5 +1,5 @@
-Model,Task,Metric,Score,PR_AUC,CV / note
-Logistic Regression,Chart Entry (binary),AUC-ROC,0.9144,0.275,0.9139 ± 0.0037  (5-fold)
-XGBoost,Chart Entry (binary),AUC-ROC,0.9655,0.4402,early stop @ iter 193
-Cox PH,Longevity (survival),C-statistic,0.7526,,penalizer=0.1; mode stratified; +decade_idx +sentiment
-Log-OLS,Longevity (OLS),R²,0.2118,,outcome=log1p(wks); +decade_idx +sentiment
+Model,Task,Metric,Audio_Only_Score,Full_Model_Score,PR_AUC_AudioOnly,PR_AUC_Full,CV_note
+Logistic Regression,Chart Entry (binary),AUC-ROC,0.7373,0.9144,0.0647,0.275,0.9139 +/- 0.0037  (5-fold)
+XGBoost,Chart Entry (binary),AUC-ROC,0.773,0.966,0.0845,0.4406,early stop @ iter 189
+Cox PH,Longevity (survival),C-statistic,0.5508,0.7526,,,penalizer=0.1; mode stratified; n=856
+Log-OLS,Longevity (OLS),R²,0.0438,0.2118,,,log1p(wks); n=856

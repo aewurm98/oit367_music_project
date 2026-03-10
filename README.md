@@ -20,7 +20,8 @@ OIT-367/
 ├── ANALYSIS_LOG.md              ← Detailed analysis log (Cursor-compatible)
 ├── LIBROSA_MODAL_PLAN.md        ← Secondary analysis feasibility plan
 │
-├── run_all_v5.py                ← ✅ CURRENT: Full model pipeline
+├── run_all_v6.py                ← ✅ CURRENT: Full model pipeline (v6 final)
+├── run_all_v5.py                ← Previous version (superseded by v6)
 ├── requirements.txt             ← Python dependencies
 │
 ├── modal_charted_scrape.py      ← Cloud: artist followers + popularity (953 artists)
@@ -31,7 +32,8 @@ OIT-367/
 ├── oit367_final_dataset.csv     ← Final dataset (78,390 tracks; run_all_v5.py input)
 ├── build_final_dataset.py       ← Builds final from base + augmented_deduped_dataset_with_artists.csv
 ├── augmented_deduped_dataset_with_artists.csv  ← Teammate enrichment (2,157 charted rows)
-├── outputs/                     ← Model outputs: figures (fig1–fig9) + CSV tables
+├── outputs/                     ← Model outputs: figures (fig1–fig11) + CSV tables
+├── oit367_final_report.docx     ← Final report (generated via scripts/generate_report.js)
 │
 └── archive/                     ← Old versions (v1–v4 pipeline, deprecated scrapers)
 ```
@@ -80,7 +82,7 @@ python3 build_final_dataset.py   # Requires: oit367_base_dataset.csv, augmented_
 
 Then run the models:
 ```bash
-python3 run_all_v5.py
+python3 run_all_v6.py
 ```
 
 ---
@@ -88,14 +90,15 @@ python3 run_all_v5.py
 ## 5. Running the Pipeline
 
 ```bash
-python3 run_all_v5.py
+python3 run_all_v6.py
 ```
 
 The script:
 1. Reads `oit367_final_dataset.csv` (fails with clear error if missing — run `build_final_dataset.py` first)
 2. Runs VIF check, Logistic Regression, XGBoost + SHAP, Cox PH, Log-OLS
-3. Saves all figures and CSV tables to `outputs/`
-4. Prints full results summary to terminal
+3. Runs audio-only baseline models (v6 addition — quantifies artist enrichment lift)
+4. Saves all figures and CSV tables to `outputs/` (fig1–fig11 + new tables)
+5. Prints full results summary to terminal
 
 **Total runtime:** ~60–90 seconds.
 
@@ -171,6 +174,12 @@ All outputs are saved to `outputs/`. Committed to the repo so teammates can refe
 | `ols_longevity_coefficients.csv` | Log-OLS coefficients |
 | `vif_table.csv` | VIF per feature (artist_peak_popularity 21.25; see RESULTS.md for collinearity note) |
 | `genre_chart_rates.csv` | Chart rate and avg popularity by genre |
+| `fig10_enrichment_comparison.png` | Audio-only vs. full model ROC-AUC and PR-AUC comparison |
+| `fig11_shap_instrumentalness.png` | SHAP dependence plot: instrumentalness vs. valence |
+| `threshold_analysis.csv` | Precision/recall/F1 at thresholds 0.02–0.50 (A&R use case) |
+| `schoenfeld_residuals.csv` | Formal PH test results per Cox feature |
+| `enrichment_comparison.csv` | Audio-only vs. full model metric summary |
+| `genre_top10.csv` / `genre_bottom10.csv` | Top/bottom genres by chart entry rate |
 
 ---
 
@@ -194,7 +203,8 @@ Old pipeline versions and deprecated scripts are in `archive/`. Do not use these
 
 | File | Superseded by | Issue |
 |---|---|---|
-| `run_all_v4.py` | `run_all_v5.py` | Missing explicit/duration_min controls; danceability VIF unfixed |
+| `run_all_v5.py` | `run_all_v6.py` | Missing audio-only baselines, threshold analysis, Schoenfeld table |
+| `run_all_v4.py` | `run_all_v6.py` | Missing explicit/duration_min controls; danceability VIF unfixed |
 | `run_all_v3.py` | `run_all_v5.py` | Spotipy block ran unconditionally; crashed laptop |
 | `run_all_v2.py` | `run_all_v5.py` | Missing VIF fixes |
 | `run_all.py` | `run_all_v5.py` | Original prototype |
@@ -203,4 +213,4 @@ Old pipeline versions and deprecated scripts are in `archive/`. Do not use these
 
 ---
 
-*Last updated: 2026-03-09 | Pipeline version: `run_all_v5.py` (v6 dataset)*
+*Last updated: 2026-03-10 | Pipeline version: `run_all_v6.py`*
