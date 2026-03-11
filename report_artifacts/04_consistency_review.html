@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OIT367 Final Report — Consistency Review</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 13px;
+    color: #1a1a1a;
+    background: #f5f5f5;
+    padding: 32px 24px;
+  }
+  .page {
+    max-width: 900px;
+    margin: 0 auto;
+    background: #fff;
+    border: 1px solid #d0d0d0;
+    border-radius: 4px;
+    padding: 48px 52px;
+  }
+
+  /* Header */
+  .report-header { border-bottom: 2px solid #1a1a1a; padding-bottom: 16px; margin-bottom: 28px; }
+  .report-header h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
+  .report-header .meta { margin-top: 6px; font-size: 12px; color: #555; }
+  .report-header .meta span { margin-right: 20px; }
+
+  /* Section titles */
+  h2 {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #333;
+    margin: 32px 0 14px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #e0e0e0;
+  }
+  h2:first-of-type { margin-top: 0; }
+
+  /* Understanding block */
+  .understanding {
+    background: #f9f9f9;
+    border: 1px solid #e4e4e4;
+    border-radius: 3px;
+    padding: 16px 18px;
+    margin-bottom: 24px;
+  }
+  .understanding p { line-height: 1.6; margin-bottom: 8px; }
+  .understanding p:last-child { margin-bottom: 0; }
+  .understanding strong { color: #111; }
+
+  /* Issue cards */
+  .issue {
+    border: 1px solid #e0e0e0;
+    border-radius: 3px;
+    margin-bottom: 14px;
+    overflow: hidden;
+  }
+  .issue-header {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 10px 14px;
+    border-bottom: 1px solid #e8e8e8;
+  }
+  .issue-header .badge {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    padding: 2px 7px;
+    border-radius: 2px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .badge-critical { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+  .badge-moderate { background: #fef3cd; color: #92400e; border: 1px solid #f5dfa0; }
+  .badge-minor    { background: #e8f4fd; color: #1e558a; border: 1px solid #b9d9f0; }
+  .badge-verified { background: #e6f4ea; color: #166534; border: 1px solid #a7d7b3; }
+
+  .issue-header .location {
+    font-size: 11px;
+    color: #888;
+    font-style: italic;
+    flex-shrink: 0;
+  }
+  .issue-header .title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #111;
+    flex: 1;
+  }
+  .issue-body {
+    padding: 12px 14px;
+    line-height: 1.65;
+    color: #333;
+  }
+  .issue-body p { margin-bottom: 8px; }
+  .issue-body p:last-child { margin-bottom: 0; }
+
+  /* Quote blocks */
+  .quote {
+    border-left: 3px solid #d0d0d0;
+    margin: 8px 0;
+    padding: 6px 12px;
+    background: #f8f8f8;
+    font-style: italic;
+    color: #444;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  .quote.wrong  { border-left-color: #e57373; background: #fdf5f5; }
+  .quote.right  { border-left-color: #66bb6a; background: #f5fdf5; }
+  .quote .label {
+    display: inline-block;
+    font-style: normal;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    margin-bottom: 3px;
+    text-transform: uppercase;
+  }
+  .label-wrong { color: #b91c1c; }
+  .label-right { color: #166534; }
+  .label-note  { color: #555; }
+
+  code {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 11.5px;
+    background: #f0f0f0;
+    padding: 1px 4px;
+    border-radius: 2px;
+    color: #c7254e;
+  }
+
+  /* Summary table */
+  .summary-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin-top: 6px;
+  }
+  .summary-table th {
+    background: #f0f0f0;
+    text-align: left;
+    padding: 7px 10px;
+    font-weight: 600;
+    border: 1px solid #ddd;
+    color: #333;
+  }
+  .summary-table td {
+    padding: 7px 10px;
+    border: 1px solid #e0e0e0;
+    vertical-align: top;
+    line-height: 1.5;
+  }
+  .summary-table tr:nth-child(even) td { background: #fafafa; }
+
+  /* Fix block */
+  .fix-box {
+    background: #f5fdf5;
+    border: 1px solid #a7d7b3;
+    border-radius: 3px;
+    padding: 14px 16px;
+    margin-top: 8px;
+  }
+  .fix-box .fix-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #166534;
+    margin-bottom: 6px;
+  }
+  .fix-box p { font-size: 12px; line-height: 1.65; color: #1a1a1a; margin-bottom: 6px; }
+  .fix-box p:last-child { margin-bottom: 0; }
+
+  /* Verified section */
+  .verified-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 6px;
+  }
+  .verified-item {
+    border: 1px solid #a7d7b3;
+    border-radius: 3px;
+    padding: 10px 12px;
+    background: #f5fdf5;
+  }
+  .verified-item .vi-title { font-weight: 600; font-size: 12px; color: #166534; margin-bottom: 4px; }
+  .verified-item .vi-body  { font-size: 11.5px; color: #444; line-height: 1.5; }
+
+  /* Priority callout */
+  .priority-box {
+    background: #fff5f5;
+    border: 1.5px solid #e57373;
+    border-radius: 3px;
+    padding: 16px 18px;
+    margin-bottom: 24px;
+  }
+  .priority-box .pb-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: #b91c1c;
+    margin-bottom: 8px;
+  }
+  .priority-box p { font-size: 12.5px; line-height: 1.65; color: #1a1a1a; margin-bottom: 8px; }
+  .priority-box p:last-child { margin-bottom: 0; }
+
+  /* Print styles */
+  @media print {
+    body { background: #fff; padding: 0; }
+    .page { border: none; padding: 24px 32px; max-width: 100%; }
+    .issue { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ── Header ── -->
+  <div class="report-header">
+    <h1>OIT367 Final Report — Consistency Review</h1>
+    <div class="meta">
+      <span>Predicting Commercial Success of Songs</span>
+      <span>Wurm · Chen · Barli · Taruno</span>
+      <span>Reviewed: March 11, 2026</span>
+    </div>
+  </div>
+
+  <!-- ── Codebase Understanding ── -->
+  <h2>Codebase Understanding</h2>
+  <div class="understanding">
+    <p><strong>Dataset:</strong> 78,390 unique Spotify tracks (v6 pipeline, cross-ID deduplicated), of which 2,157 appeared on the Billboard Hot 100 between 1958–2024 (2.75% positive rate). Enriched with Spotify API artist features, Last.fm listener counts (log-transformed), and VADER lyric sentiment for a charted-track subset of n = 856 (40.1% match rate).</p>
+    <p><strong>Four models:</strong> Logistic Regression (AUC-ROC = 0.914, PR-AUC = 0.275), XGBoost (AUC-ROC = 0.966, PR-AUC = 0.441), Cox Proportional Hazards (C-stat = 0.753, n = 856, mode-stratified), Log-OLS robustness check (R² = 0.212, n = 856).</p>
+    <p><strong>15 classification features:</strong> 10 Spotify audio metrics + 5 artist-level commercial signals. Longevity models add <code>decade_idx</code> and 4 lyric sentiment features. <code>energy</code>, <code>danceability</code>, and <code>tempo</code> removed for VIF &gt; 10. All final numbers in report appendix tables verified against <code>outputs/</code> CSV files — odds ratios, Cox coefficients, threshold analysis, and model performance all match exactly.</p>
+  </div>
+
+  <!-- ── Priority Fix ── -->
+  <h2>Must-Fix Before Submission</h2>
+  <div class="priority-box">
+    <div class="pb-label">Critical — appears in Executive Summary and Conclusions</div>
+    <p>The <code>decade_idx</code> Cox finding is stated with the wrong direction in two of the three highest-visibility sections of the report (Executive Summary and Conclusions), while the Cox table in the same appendix states it correctly. A grader reading the report will encounter directly contradictory claims about the same finding.</p>
+    <p><strong>The correct interpretation:</strong> Cox coefficient = −0.666, HR = 0.514. Because HR &lt; 1, more recent decades are associated with a <em>lower</em> exit hazard — songs stay on the chart <em>longer</em>. This is independently confirmed by the Log-OLS <code>decade_idx</code> coefficient of +0.275 (more log-weeks in recent decades). Both models agree.</p>
+    <p><strong>Affected text (Executive Summary):</strong> "rotate off the chart significantly <em>faster</em>" → should be "remain on the chart <em>longer</em>".<br>
+    <strong>Affected text (Conclusions):</strong> "49% <em>increase</em> in per-week exit hazard" → should be "49% <em>lower</em> per-week exit hazard (HR = 0.514)".</p>
+  </div>
+
+  <!-- ── Critical Issues ── -->
+  <h2>Critical Issues</h2>
+
+  <div class="issue">
+    <div class="issue-header">
+      <span class="badge badge-critical">Critical</span>
+      <span class="title">decade_idx direction wrong in Executive Summary</span>
+      <span class="location">Executive Summary, p. 2</span>
+    </div>
+    <div class="issue-body">
+      <p>The Executive Summary states that songs in more recent decades exit the chart faster. The Cox model shows the opposite.</p>
+      <div class="quote wrong"><span class="label label-wrong">Report says (wrong)</span><br>"tracks from more recent decades rotate off the chart <strong>significantly faster</strong> on a per-week basis than their predecessors"</div>
+      <div class="quote right"><span class="label label-right">Cox output (HR = 0.514 &lt; 1)</span><br>HR &lt; 1 = lower exit hazard = songs exit <strong>slower</strong> = <strong>longer</strong> chart runs in more recent decades.</div>
+      <p>The Results section (p. 9, Finding 3) and the Cox table (Appendix, p. 18) both state the correct direction. The Executive Summary contradicts them.</p>
+    </div>
+  </div>
+
+  <div class="issue">
+    <div class="issue-header">
+      <span class="badge badge-critical">Critical</span>
+      <span class="title">decade_idx hazard direction wrong in Conclusions</span>
+      <span class="location">Conclusions, p. 11 + Appendix Cox table, p. 18</span>
+    </div>
+    <div class="issue-body">
+      <p>The Conclusions and the Cox coefficient table are on adjacent pages and state directly opposite things about the same number.</p>
+      <div class="quote wrong"><span class="label label-wrong">Conclusions (wrong)</span><br>"each additional decade corresponding to a <strong>49% increase</strong> in per-week exit hazard"</div>
+      <div class="quote right"><span class="label label-right">Cox table, same appendix (correct)</span><br><code>decade_idx</code>: HR = 0.514 → "<strong>49% lower</strong> exit hazard per decade"</div>
+      <p>HR = 0.514 means 1 − 0.514 = 0.486, i.e., ~49% <em>lower</em> hazard, not 49% higher. The Conclusions text inverts the result. The Log-OLS coefficient (+0.275) independently confirms the correct direction (more recent = more log-weeks).</p>
+    </div>
+  </div>
+
+  <!-- ── Moderate Issues ── -->
+  <h2>Moderate Issues</h2>
+
+  <div class="issue">
+    <div class="issue-header">
+      <span class="badge badge-moderate">Moderate</span>
+      <span class="title">Progressive OLS models in Results were never described in Methods</span>
+      <span class="location">Methods (p. 5) → Results 4.2 (p. 9)</span>
+    </div>
+    <div class="issue-body">
+      <p>Methods describes four models: LR, XGBoost, Cox PH, and Log-OLS (all on n = 856 for longevity). Results 4.2 leads with a progressive OLS enrichment sequence (audio-only → +genre → +artist → full) run on a different sample (n = 2,157) with a different feature set (includes <code>danceability</code>, <code>energy</code>, <code>tempo</code>, <code>time_signature</code>, genre dummies). These intermediate models are never established in Methods, creating a disconnect between the two sections.</p>
+    </div>
+  </div>
+
+  <div class="issue">
+    <div class="issue-header">
+      <span class="badge badge-moderate">Moderate</span>
+      <span class="title">tempo listed as a classification feature in Results</span>
+      <span class="location">Results 4.1, p. 6</span>
+    </div>
+    <div class="issue-body">
+      <div class="quote wrong"><span class="label label-wrong">Report says</span><br>"audio characteristics (<strong>valence, tempo</strong>, acousticness, instrumentalness, and others)"</div>
+      <p><code>tempo</code> was removed from all final models for VIF = 10.7 (above the VIF &gt; 10 removal threshold stated in the Data section). It is not among the 15 classification features. Listing it here implies it was used.</p>
+    </div>
+  </div>
+
+  <div class="issue">
+    <div class="issue-header">
+      <span class="badge badge-moderate">Moderate</span>
+      <span class="title">n = 2,157 OLS and n = 856 Cox/OLS not clearly distinguished</span>
+      <span class="location">Results 4.2 throughout</span>
+    </div>
+    <div class="issue-body">
+      <p>Results 4.2 moves between two different longevity analyses without signaling the switch to the reader: (1) progressive OLS on n = 2,157 full charted tracks, which yields R² values of 0.047, 0.27, 0.23, and 0.24; and (2) the primary Cox PH and Log-OLS on n = 856 (lyric-matched), which yields C-stat = 0.753 and R² = 0.212. The model performance table in the appendix reports the n = 856 results. A reader comparing the R² values in the text to the table will find an apparent mismatch (0.24 vs. 0.212) unless the sample difference is explicit.</p>
+    </div>
+  </div>
+
+  <div class="issue">
+    <div class="issue-header">
+      <span class="badge badge-moderate">Moderate</span>
+      <span class="title">SHAP values in variable table are stale vs. actual pipeline output</span>
+      <span class="location">Appendix variable definitions, p. 13</span>
+    </div>
+    <div class="issue-body">
+      <p>The variable definitions table cites SHAP values that do not match <code>xgboost_shap_importance.csv</code>:</p>
+      <table class="summary-table" style="margin-top:6px;">
+        <thead><tr><th>Feature</th><th>Cited in text</th><th>Actual CSV value</th></tr></thead>
+        <tbody>
+          <tr><td><code>artist_peak_popularity</code></td><td>1.618</td><td>1.535</td></tr>
+          <tr><td><code>lastfm_listeners_log</code></td><td>1.153</td><td>1.206</td></tr>
+        </tbody>
+      </table>
+      <p style="margin-top:8px;">Figure 2 (the SHAP bar chart) was generated from the pipeline and therefore shows the correct CSV values. A reader comparing Figure 2 to the variable table will see a discrepancy. The OR values in the same table are correct — they match <code>logistic_odds_ratios.csv</code> exactly.</p>
+    </div>
+  </div>
+
+  <div class="issue">
+    <div class="issue-header">
+      <span class="badge badge-moderate">Moderate</span>
+      <span class="title">artist_popularity_api Cox sign: VIF caveat and substantive interpretation conflict</span>
+      <span class="location">Appendix Cox table (p. 18) + Variable definitions (p. 13)</span>
+    </div>
+    <div class="issue-body">
+      <p>The variable definitions table (p. 13) says of <code>artist_popularity_api</code>: <em>"Highly collinear with <code>artist_peak_popularity</code> (VIF = 14.1); individual coefficient signs should not be interpreted in isolation."</em></p>
+      <p>The Cox coefficient table footnote (p. 18) then offers a substantive interpretation of the sign reversal: <em>"one hypothesis is that historical peak popularity captures durable fanbase depth…while current API popularity may partially reflect short-lived viral attention."</em></p>
+      <p>These two framings are in tension. The VIF caveat instructs readers not to interpret the sign; the footnote does exactly that. The VIF caveat should be the dominant framing.</p>
+    </div>
+  </div>
+
+  <div class="issue">
+    <div class="issue-header">
+      <span class="badge badge-moderate">Moderate</span>
+      <span class="title">Data cleaning pipeline table shows 61,871 tracks for Q1, but 78,390 are used</span>
+      <span class="location">Appendix, data cleaning table, p. 12</span>
+    </div>
+    <div class="issue-body">
+      <p>The table shows "Adding artist features → 61,871 unique tracks with artist features (Q1)", implying the classification uses only those tracks with full artist feature coverage. In reality, all 78,390 tracks are used for classification — artist features with missing values are handled via imputation (<code>is_us_artist NaN→0</code>) and the auto-detection threshold. The Results section confirms this: 80% of 78,390 = 62,712 training tracks.</p>
+    </div>
+  </div>
+
+  <!-- ── Minor Issues ── -->
+  <h2>Minor Issues</h2>
+
+  <div class="issue">
+    <div class="issue-header">
+      <span class="badge badge-minor">Minor</span>
+      <span class="title">Conclusion #4 has no supporting exhibit</span>
+      <span class="location">Conclusions, p. 10</span>
+    </div>
+    <div class="issue-body">
+      <div class="quote wrong"><span class="label label-note">Stated</span><br>"4. All factors influencing charting longevity have seen absolute correlation decrease over time"</div>
+      <p>This specific claim does not correspond to any model output, table, or figure in the report. It may be intended to paraphrase the temporal validation finding (all models produce negative out-of-time R²), but that finding is about model generalizability, not correlation magnitudes. Should be reworded to reference a specific result, or removed.</p>
+    </div>
+  </div>
+
+  <div class="issue">
+    <div class="issue-header">
+      <span class="badge badge-minor">Minor</span>
+      <span class="title">danceability and tempo cited as key features in Introduction</span>
+      <span class="location">Introduction, p. 3</span>
+    </div>
+    <div class="issue-body">
+      <p>The Introduction mentions "valence, instrumentalness, <strong>danceability</strong>, <strong>tempo</strong>, and others" as the audio features driving the analysis. Both were removed from all final models for VIF &gt; 10 (danceability VIF = 12.4, tempo VIF = 10.7). Citing them in the Introduction as illustrative descriptors is not incorrect per se, but it sets a framing that the Data section then removes without explicit callback.</p>
+    </div>
+  </div>
+
+  <div class="issue">
+    <div class="issue-header">
+      <span class="badge badge-minor">Minor</span>
+      <span class="title">Cox mode stratification rationale is outdated</span>
+      <span class="location">Methods, p. 5–6</span>
+    </div>
+    <div class="issue-body">
+      <p>The Methods section explains that <code>mode</code> is stratified because it "violated this assumption" (Schoenfeld test). In the v6 pipeline, the features that actually fail the Schoenfeld test are <code>decade_idx</code>, <code>acousticness</code>, <code>duration_min</code>, and <code>sentiment_pos</code> — not <code>mode</code>. Mode is stratified by design (carried over from prior pipeline iterations). The stated rationale is technically a carryover from an earlier version.</p>
+    </div>
+  </div>
+
+  <div class="issue">
+    <div class="issue-header">
+      <span class="badge badge-minor">Minor</span>
+      <span class="title">Positive rate expressed three different ways</span>
+      <span class="location">Executive Summary, Figure 1 label, Section 2.2</span>
+    </div>
+    <div class="issue-body">
+      <p>The same quantity appears as "roughly 3%" (Executive Summary), "2.8%" (Figure 1 bar label), and "2.75%" (Section 2.2, precision-recall baseline, threshold table). Should be standardized to 2.75% throughout, with the figure label corrected to match.</p>
+    </div>
+  </div>
+
+  <div class="issue">
+    <div class="issue-header">
+      <span class="badge badge-minor">Minor</span>
+      <span class="title">Preliminary OLS appendix models include VIF-removed features without explanation</span>
+      <span class="location">Appendix, Model 1 OLS output, p. 19</span>
+    </div>
+    <div class="issue-body">
+      <p>The "Model 1: Audio features only" OLS regression output includes <code>danceability</code>, <code>energy</code>, <code>tempo</code>, and <code>time_signature</code> — features that the Data section states were removed for VIF &gt; 10. A reader coming from Section II will be confused to see them appear here. A clarifying note that these preliminary models use the full Spotify feature set prior to VIF screening would resolve the inconsistency.</p>
+    </div>
+  </div>
+
+  <!-- ── Summary Table ── -->
+  <h2>Issue Summary</h2>
+  <table class="summary-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Severity</th>
+        <th>Location</th>
+        <th>Issue</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td><span class="badge badge-critical">Critical</span></td>
+        <td>Executive Summary</td>
+        <td><code>decade_idx</code> described as "faster rotation"; HR = 0.514 means <em>longer</em> runs</td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td><span class="badge badge-critical">Critical</span></td>
+        <td>Conclusions p. 11</td>
+        <td>"49% increase in hazard" directly contradicts Cox table "49% lower hazard" on adjacent page</td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td><span class="badge badge-moderate">Moderate</span></td>
+        <td>Methods → Results 4.2</td>
+        <td>Progressive OLS models (n = 2,157) featured in Results but never described in Methods</td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td><span class="badge badge-moderate">Moderate</span></td>
+        <td>Results 4.1, p. 6</td>
+        <td><code>tempo</code> listed as a classification feature; removed for VIF = 10.7</td>
+      </tr>
+      <tr>
+        <td>5</td>
+        <td><span class="badge badge-moderate">Moderate</span></td>
+        <td>Results 4.2</td>
+        <td>n = 2,157 OLS and n = 856 Cox/OLS presented without sufficient disambiguation; R² values appear inconsistent</td>
+      </tr>
+      <tr>
+        <td>6</td>
+        <td><span class="badge badge-moderate">Moderate</span></td>
+        <td>Appendix variable table, p. 13</td>
+        <td>SHAP values in text (1.618, 1.153) are stale; CSV shows 1.535, 1.206; Figure 2 shows correct values</td>
+      </tr>
+      <tr>
+        <td>7</td>
+        <td><span class="badge badge-moderate">Moderate</span></td>
+        <td>Appendix Cox table + variable table</td>
+        <td><code>artist_popularity_api</code>: VIF caveat says don't interpret sign; footnote does exactly that</td>
+      </tr>
+      <tr>
+        <td>8</td>
+        <td><span class="badge badge-moderate">Moderate</span></td>
+        <td>Appendix pipeline table, p. 12</td>
+        <td>Shows 61,871 tracks for Q1; models actually use all 78,390 with NaN imputation</td>
+      </tr>
+      <tr>
+        <td>9</td>
+        <td><span class="badge badge-minor">Minor</span></td>
+        <td>Conclusions, p. 10</td>
+        <td>Conclusion #4 ("absolute correlation decrease over time") has no supporting exhibit</td>
+      </tr>
+      <tr>
+        <td>10</td>
+        <td><span class="badge badge-minor">Minor</span></td>
+        <td>Introduction, p. 3</td>
+        <td><code>danceability</code> and <code>tempo</code> cited as key audio features; both removed from all final models</td>
+      </tr>
+      <tr>
+        <td>11</td>
+        <td><span class="badge badge-minor">Minor</span></td>
+        <td>Methods, p. 5–6</td>
+        <td>Rationale for stratifying <code>mode</code> in Cox cites a v5 Schoenfeld failure; v6 failures are different features</td>
+      </tr>
+      <tr>
+        <td>12</td>
+        <td><span class="badge badge-minor">Minor</span></td>
+        <td>Executive Summary / Fig 1 / §2.2</td>
+        <td>Positive rate stated as "~3%", "2.8%", and "2.75%" in three places — should be standardized</td>
+      </tr>
+      <tr>
+        <td>13</td>
+        <td><span class="badge badge-minor">Minor</span></td>
+        <td>Appendix OLS output, p. 19</td>
+        <td>Preliminary OLS includes VIF-removed features (<code>danceability</code>, <code>energy</code>, <code>tempo</code>) without explanation</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ── Verified Correct ── -->
+  <h2>Verified Correct</h2>
+  <div class="verified-grid">
+    <div class="verified-item">
+      <div class="vi-title">Logistic Regression Odds Ratios</div>
+      <div class="vi-body">All 15 OR values match <code>logistic_odds_ratios.csv</code> to 2 decimal places. Table is numerically accurate.</div>
+    </div>
+    <div class="verified-item">
+      <div class="vi-title">Cox PH Coefficient Table</div>
+      <div class="vi-body">All 6 significant Cox rows match <code>cox_summary.csv</code> to 3 decimal places. Numbers are correct; the narrative interpretation of <code>decade_idx</code> is the issue, not the table.</div>
+    </div>
+    <div class="verified-item">
+      <div class="vi-title">Model Performance Table</div>
+      <div class="vi-body">AUC-ROC, PR-AUC, C-stat, and R² all match <code>model_performance_summary.csv</code> exactly.</div>
+    </div>
+    <div class="verified-item">
+      <div class="vi-title">Threshold Analysis (Appendix)</div>
+      <div class="vi-body">All precision, recall, and track-count values match <code>threshold_analysis.csv</code> exactly. The threshold = 0.20 recommendation is numerically supported.</div>
+    </div>
+    <div class="verified-item">
+      <div class="vi-title">Dataset Counts</div>
+      <div class="vi-body">78,390 total tracks, 2,157 charted, 2.75% rate, 1,345 cross-ID duplicates removed, 856 lyric-matched — all consistent across pipeline logs and report text.</div>
+    </div>
+    <div class="verified-item">
+      <div class="vi-title">Key Narrative Claims</div>
+      <div class="vi-body">Artist features dominate audio features; instrumentalness is top audio barrier (OR = 0.34); valence is strongest positive audio signal (OR = 1.44); 16× XGBoost PR-AUC lift — all numerically supported.</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
